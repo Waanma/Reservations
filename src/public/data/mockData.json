@@ -1,0 +1,143 @@
+{
+  "salon": {
+    "coordinates": [
+      [0, 0],
+      [10, 0],
+      [10, 5],
+      [5, 5],
+      [5, 0]
+    ]
+  },
+  "tables": [
+    {
+      "id": "1",
+      "name": "Table 1",
+      "shape": "rect",
+      "x": 1,
+      "y": 1,
+      "width": 2,
+      "height": 1,
+      "radius": 0
+    },
+    {
+      "id": "2",
+      "name": "Table 2",
+      "shape": "circle",
+      "x": 4,
+      "y": 2,
+      "width": 0,
+      "height": 0,
+      "radius": 1
+    },
+    {
+      "id": "3",
+      "name": "Table 3",
+      "shape": "rect",
+      "x": 7,
+      "y": 3,
+      "width": 3,
+      "height": 1.5,
+      "radius": 0
+    },
+    {
+      "id": "4",
+      "name": "Table 4",
+      "shape": "rect",
+      "x": 2,
+      "y": 4,
+      "width": 2,
+      "height": 1,
+      "radius": 0
+    }
+  ],
+  "config": {
+    "reservationTime": 30,
+    "timeBetweenReservations": 15,
+    "pricingSchedule": [
+      {
+        "day": "Monday",
+        "startTime": "08:00",
+        "endTime": "12:00",
+        "price": 50
+      },
+      {
+        "day": "Monday",
+        "startTime": "12:00",
+        "endTime": "18:00",
+        "price": 60
+      },
+      {
+        "day": "Tuesday",
+        "startTime": "08:00",
+        "endTime": "12:00",
+        "price": 50
+      },
+      {
+        "day": "Tuesday",
+        "startTime": "12:00",
+        "endTime": "18:00",
+        "price": 55
+      },
+      {
+        "day": "Wednesday",
+        "startTime": "08:00",
+        "endTime": "12:00",
+        "price": 50
+      },
+      {
+        "day": "Wednesday",
+        "startTime": "12:00",
+        "endTime": "18:00",
+        "price": 55
+      },
+      {
+        "day": "Thursday",
+        "startTime": "08:00",
+        "endTime": "12:00",
+        "price": 55
+      },
+      {
+        "day": "Thursday",
+        "startTime": "12:00",
+        "endTime": "18:00",
+        "price": 60
+      },
+      {
+        "day": "Friday",
+        "startTime": "08:00",
+        "endTime": "12:00",
+        "price": 60
+      },
+      {
+        "day": "Friday",
+        "startTime": "12:00",
+        "endTime": "18:00",
+        "price": 70
+      },
+      {
+        "day": "Saturday",
+        "startTime": "08:00",
+        "endTime": "12:00",
+        "price": 70
+      },
+      {
+        "day": "Saturday",
+        "startTime": "12:00",
+        "endTime": "18:00",
+        "price": 80
+      },
+      {
+        "day": "Sunday",
+        "startTime": "08:00",
+        "endTime": "12:00",
+        "price": 70
+      },
+      {
+        "day": "Sunday",
+        "startTime": "12:00",
+        "endTime": "18:00",
+        "price": 80
+      }
+    ]
+  }
+}

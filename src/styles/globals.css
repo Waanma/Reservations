@@ -1,0 +1,63 @@
+/* Estilos generales para el editor del salón */
+.salon-editor {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+  text-align: center;
+  color: #333;
+}
+
+.svg-container {
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.coordinates {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.coordinate {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.coordinate label {
+  font-size: 14px;
+  color: #555;
+}
+
+.coordinate input {
+  padding: 5px;
+  margin-left: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 80px;
+}
+
+input[type='number'] {
+  width: 100px;
+}
+
+button {
+  background-color: #f44336;
+  color: white;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button:hover {
+  background-color: #d32f2f;
+}
