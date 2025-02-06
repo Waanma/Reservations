@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import TableEditor from './TableEditor'; // Asegúrate de que la ruta sea correcta
+import mockData from '@/public/data/mockData.json';
 
 export type Table = {
   id: number;
@@ -16,12 +17,7 @@ type Mode = 'salon' | 'mesas';
 
 const SalonEditor: React.FC = () => {
   // Coordenadas iniciales del salón (en metros)
-  const initialCoordinates: number[][] = [
-    [0, 0],
-    [10, 0],
-    [10, 5],
-    [0, 5],
-  ];
+  const initialCoordinates: number[][] = mockData.salon.coordinates;
 
   // Estados para la figura del salón
   const [salonCoordinates, setSalonCoordinates] =
@@ -31,6 +27,9 @@ const SalonEditor: React.FC = () => {
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [movingVertex, setMovingVertex] = useState<number | null>(null);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [tables, setTables] = useState<Table[]>([]);
 
   // Historial para undo (cada entrada es un estado previo de salonCoordinates)
   // (Aquí se guarda una copia profunda para evitar referencias compartidas)
