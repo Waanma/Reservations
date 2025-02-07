@@ -1,17 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import TableEditor from './TableEditor'; // Asegúrate de que la ruta sea correcta
+import TableEditor from '@/components/TableEditor';
 import mockData from '@/public/data/mockData.json';
-
-export type Table = {
-  id: number;
-  name: string;
-  x: number; // posición en metros (esquina superior izquierda)
-  y: number;
-  width: number; // en metros
-  height: number; // en metros
-};
+import { Table } from '@/types/types';
 
 type Mode = 'salon' | 'mesas';
 
@@ -19,7 +11,23 @@ const SalonEditor: React.FC = () => {
   // Coordenadas iniciales del salón (en metros)
   const initialCoordinates: number[][] = mockData.salon.coordinates;
 
-  // Estados para la figura del salón
+  // Inicializa las mesas usando los datos del mock.
+  const [tables, setTables] = useState<Table[]>(() => {
+    return mockData.tables.length > 0
+      ? mockData.tables.map((table, index) => ({
+          id: table.id ?? index + 1,
+          name: table.name ?? `Mesa ${index + 1}`,
+          shape: table.shape === 'circle' ? 'circle' : 'rect',
+          x: table.x ?? 0,
+          y: table.y ?? 0,
+          width: table.shape === 'rect' ? table.width ?? 2 : undefined,
+          height: table.shape === 'rect' ? table.height ?? 1 : undefined,
+          radius: table.shape === 'circle' ? table.radius ?? 1 : undefined,
+        }))
+      : [];
+  });
+
+  // Estado para la figura del salón
   const [salonCoordinates, setSalonCoordinates] =
     useState<number[][]>(initialCoordinates);
   const [distances, setDistances] = useState<{ [key: string]: number }>({});
@@ -28,15 +36,11 @@ const SalonEditor: React.FC = () => {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [movingVertex, setMovingVertex] = useState<number | null>(null);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [tables, setTables] = useState<Table[]>([]);
-
-  // Historial para undo (cada entrada es un estado previo de salonCoordinates)
-  // (Aquí se guarda una copia profunda para evitar referencias compartidas)
-  const [history, setHistory] = useState<number[][][]>([]);
+  // (Opcional) Historial para undo (no se usa en este ejemplo)
   const pushHistory = (coords: number[][]) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const cloned = coords.map((point) => [...point]);
-    setHistory((prev) => [...prev, cloned]);
+    // Se podría implementar lógica de historial aquí.
   };
 
   // Estado para guardar la figura final del salón
@@ -72,29 +76,10 @@ const SalonEditor: React.FC = () => {
     setDistances(newDistances);
   }, [salonCoordinates]);
 
-  // Configuración de historial para undo (Ctrl+Z / Cmd+Z)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        setHistory((prev) => {
-          if (prev.length > 0) {
-            const last = prev[prev.length - 1];
-            setSalonCoordinates(last);
-            return prev.slice(0, prev.length - 1);
-          }
-          return prev;
-        });
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Modo de edición: 'salon' para editar el salón, 'mesas' para agregar mesas
+  // Modo de edición: 'salon' para editar el salón, 'mesas' para editar mesas
   const [editMode, setEditMode] = useState<Mode>('salon');
 
   // ---------- Funciones para el modo SALÓN ----------
-
   const handleVertexMouseDown = (
     index: number,
     e: React.MouseEvent<SVGCircleElement, MouseEvent>
@@ -148,7 +133,7 @@ const SalonEditor: React.FC = () => {
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  // Al hacer doble clic en el SVG se agrega un vértice (se proyecta sobre el segmento más cercano)
+  // Agrega un vértice al hacer doble clic (proyecta sobre el segmento más cercano).
   const handleAddVertex = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
     if (editMode !== 'salon') return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -167,7 +152,6 @@ const SalonEditor: React.FC = () => {
       x: salonCoordinates[endIndex][0],
       y: salonCoordinates[endIndex][1],
     };
-    // Proyecta P sobre la línea AB
     const ABx = B.x - A.x;
     const ABy = B.y - A.y;
     const APx = P.x - A.x;
@@ -184,7 +168,6 @@ const SalonEditor: React.FC = () => {
     setSalonCoordinates(updatedCoordinates);
   };
 
-  // Encuentra el segmento (por índices) cuyo punto proyectado esté más cercano al punto (_x, _y)
   const findNearestVertices = (_x: number, _y: number) => {
     let nearestStartIndex = -1;
     let nearestEndIndex = -1;
@@ -257,7 +240,6 @@ const SalonEditor: React.FC = () => {
       const v1 = salonCoordinates[index1];
       const v2 = salonCoordinates[index2];
       let fixedIndex: number, moveIndex: number;
-      // Se fija el vértice de acuerdo a: de arriba hacia abajo y, en caso de empate, de izquierda a derecha
       if (v1[1] < v2[1]) {
         fixedIndex = index1;
         moveIndex = index2;
@@ -274,8 +256,10 @@ const SalonEditor: React.FC = () => {
         }
       }
       const [xFixed, yFixed] = salonCoordinates[fixedIndex];
-      const [xMove, yMove] = salonCoordinates[moveIndex];
-      const angle = Math.atan2(yMove - yFixed, xMove - xFixed);
+      const angle = Math.atan2(
+        salonCoordinates[moveIndex][1] - yFixed,
+        salonCoordinates[moveIndex][0] - xFixed
+      );
       const newX = xFixed + newDistance * Math.cos(angle);
       const newY = yFixed + newDistance * Math.sin(angle);
       pushHistory(salonCoordinates);
@@ -285,33 +269,29 @@ const SalonEditor: React.FC = () => {
     }
   };
 
-  // Al guardar, se almacena la figura final del salón para luego usarla como límite en el editor de mesas.
   const handleSaveSalon = () => {
-    // Aquí podrías llamar a una API para guardar la figura si lo deseas.
-    setSavedSalon(salonCoordinates); // Guarda el tamaño y forma final del salón.
+    setSavedSalon(salonCoordinates);
     setEditMode('mesas');
   };
-
-  // ---------- Renderizado ----------
 
   if (editMode === 'mesas') {
     return (
       <TableEditor
-        tables={[]}
-        setTables={() => {}}
+        tables={tables}
+        setTables={setTables}
         scale={scaleRef.current}
         zoom={zoom}
         position={position}
         svgSize={svgSize}
-        salonPolygon={savedSalon} // se pasa la figura guardada del salón
+        salonPolygon={savedSalon}
         onSwitchToSalon={() => setEditMode('salon')}
         handlePanMouseDown={handlePanMouseDown}
-        showGrid={false} // No se muestran las líneas de fondo en la vista final
+        showGrid={false}
       />
     );
   }
 
-  // --- Cálculo de los límites de la cuadrícula ---
+  // Calcula límites para la cuadrícula.
   const salonXs = salonCoordinates.map((c) => c[0]);
   const salonYs = salonCoordinates.map((c) => c[1]);
   const visibleMaxX = svgSize.width / scaleRef.current;

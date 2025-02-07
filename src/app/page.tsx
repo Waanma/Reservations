@@ -1,8 +1,7 @@
 const Home = () => {
   return (
     <div>
-      <h1>Welcome to the Gym Reservation System</h1>
-      <p>Manage your gym and make reservations.</p>
+      <h1>Welcome to the Reservation System</h1>
     </div>
   );
 };

@@ -14,7 +14,8 @@
       "x": 1,
       "y": 1,
       "width": 2,
-      "height": 1
+      "height": 1,
+      "shape": "rect"
     },
     {
       "id": 2,
@@ -22,7 +23,8 @@
       "x": 4,
       "y": 2,
       "width": 2,
-      "height": 2
+      "height": 2,
+      "shape": "rect"
     },
     {
       "id": 3,
@@ -30,7 +32,8 @@
       "x": 7,
       "y": 3,
       "width": 3,
-      "height": 1.5
+      "height": 1.5,
+      "shape": "rect"
     },
     {
       "id": 4,
@@ -38,7 +41,16 @@
       "x": 2,
       "y": 4,
       "width": 2,
-      "height": 1
+      "height": 1,
+      "shape": "rect"
+    },
+    {
+      "id": 5,
+      "name": "Circle Table 1",
+      "x": 6,
+      "y": 6,
+      "radius": 2,
+      "shape": "circle"
     }
   ],
   "config": {

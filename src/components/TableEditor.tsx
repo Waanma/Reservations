@@ -1,7 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Table } from './SalonEditor';
+import React, { useState, useRef, useEffect } from 'react';
+import { Table } from '@/types/types';
+import { activeButtonStyle, inactiveButtonStyle } from '@/styles/buttonStyles';
+
+function getNewTableId(tables: Table[]): number {
+  if (tables.length === 0) return 1;
+  return Math.max(...tables.map((t) => t.id)) + 1;
+}
 
 interface TableEditorProps {
   tables: Table[];
@@ -13,7 +19,7 @@ interface TableEditorProps {
   salonPolygon: number[][] | null;
   onSwitchToSalon: () => void;
   handlePanMouseDown: (e: React.MouseEvent<Element, MouseEvent>) => void;
-  showGrid?: boolean; // nueva propiedad opcional
+  showGrid?: boolean;
 }
 
 const TableEditor: React.FC<TableEditorProps> = ({
@@ -26,55 +32,75 @@ const TableEditor: React.FC<TableEditorProps> = ({
   salonPolygon,
   onSwitchToSalon,
   handlePanMouseDown,
-  showGrid,
+  showGrid = true,
 }) => {
-  const [movingTableIndex, setMovingTableIndex] = useState<number | null>(null);
-  // Estado para controlar si estamos en Modo Edición
+  // Estados y refs
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [addingTable, setAddingTable] = useState<boolean>(false);
+  const [selectedShape, setSelectedShape] = useState<'rect' | 'circle'>('rect');
+  const [draftTable, setDraftTable] = useState<Table | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(zoom);
+  const drawingStart = useRef<{ x: number; y: number } | null>(null);
+  const draftRef = useRef<Table | null>(null); // Para mantener el draft actualizado
+
+  // Nuevo estado para mostrar el modal de edición
+  const [tableToEdit, setTableToEdit] = useState<Table | null>(null);
+
+  useEffect(() => {
+    console.log('--- Render TableEditor ---');
+    console.log(
+      'isEditing:',
+      isEditing,
+      'addingTable:',
+      addingTable,
+      'draftTable:',
+      draftTable
+    );
+    console.log('tables:', tables);
+  }, [isEditing, addingTable, draftTable, tables]);
 
   const toggleEditMode = () => {
     setIsEditing((prev) => !prev);
+    setAddingTable(false);
   };
 
-  // Solo se permite agregar mesas en modo edición
-  const handleAddTable = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
+  const handleZoomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCurrentZoom(parseFloat(e.target.value));
+  };
+
+  const startAddTable = (shape: 'rect' | 'circle') => {
     if (!isEditing) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = (e.clientX - rect.left - position.x) / (scale * zoom);
-    const y = (e.clientY - rect.top - position.y) / (scale * zoom);
-    const newTable: Table = {
-      id: Date.now(),
-      name: `Mesa ${tables.length + 1}`,
-      x,
-      y,
-      width: 2,
-      height: 1,
-    };
-    setTables([...tables, newTable]);
+    setSelectedShape(shape);
+    setAddingTable(true);
+    setDraftTable(null);
+    drawingStart.current = null;
   };
 
+  // Permite arrastrar una mesa únicamente en modo edición.
   const handleTableMouseDown = (
     index: number,
-    e: React.MouseEvent<SVGRectElement, MouseEvent>
+    e: React.MouseEvent<SVGElement, MouseEvent>
   ) => {
+    if (!isEditing) return; // Solo se permite arrastrar en modo edición
     e.stopPropagation();
-    setMovingTableIndex(index);
     const startX = e.clientX;
     const startY = e.clientY;
-    const initialTable = tables[index];
+    const table = tables[index];
+    if (!table) return;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
-      const newX = initialTable.x + deltaX / (scale * zoom);
-      const newY = initialTable.y + deltaY / (scale * zoom);
-      const updatedTables = [...tables];
-      updatedTables[index] = { ...updatedTables[index], x: newX, y: newY };
-      setTables(updatedTables);
+      const newX = table.x + deltaX / (scale * currentZoom);
+      const newY = table.y + deltaY / (scale * currentZoom);
+      setTables((prev) => {
+        const updated = [...prev];
+        updated[index] = { ...updated[index], x: newX, y: newY };
+        return updated;
+      });
     };
 
     const onMouseUp = () => {
-      setMovingTableIndex(null);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
@@ -83,101 +109,207 @@ const TableEditor: React.FC<TableEditorProps> = ({
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  // Edición del nombre y dimensiones (se activa al hacer doble clic sobre el texto)
+  const handleSVGMouseDown = (
+    e: React.MouseEvent<SVGSVGElement, MouseEvent>
+  ) => {
+    if (addingTable) {
+      if (draftTable) return;
+
+      const svgRect = e.currentTarget.getBoundingClientRect();
+      const startX =
+        (e.clientX - svgRect.left - position.x) / (scale * currentZoom);
+      const startY =
+        (e.clientY - svgRect.top - position.y) / (scale * currentZoom);
+      drawingStart.current = { x: startX, y: startY };
+
+      const newId = getNewTableId(tables);
+      const newDraft: Table =
+        selectedShape === 'rect'
+          ? {
+              id: newId,
+              name: `Mesa ${newId}`,
+              shape: 'rect',
+              x: startX,
+              y: startY,
+              width: 0,
+              height: 0,
+            }
+          : {
+              id: newId,
+              name: `Mesa ${newId}`,
+              shape: 'circle',
+              x: startX,
+              y: startY,
+              radius: 0,
+            };
+      setDraftTable(newDraft);
+      draftRef.current = newDraft;
+
+      const handleGlobalMouseMove = (moveEvent: MouseEvent) => {
+        const x =
+          (moveEvent.clientX - svgRect.left - position.x) /
+          (scale * currentZoom);
+        const y =
+          (moveEvent.clientY - svgRect.top - position.y) /
+          (scale * currentZoom);
+        setDraftTable((prev) => {
+          if (!prev || !drawingStart.current) return prev;
+          const updated = { ...prev } as Table;
+          if (updated.shape === 'rect') {
+            updated.width = x - drawingStart.current.x;
+            updated.height = y - drawingStart.current.y;
+          } else {
+            updated.radius = Math.hypot(
+              x - drawingStart.current.x,
+              y - drawingStart.current.y
+            );
+          }
+          draftRef.current = updated;
+          return updated;
+        });
+      };
+
+      const handleGlobalMouseUp = () => {
+        const currentDraft = draftRef.current!;
+        if (!currentDraft || !drawingStart.current) {
+          setAddingTable(false);
+          return;
+        }
+        let finalized = { ...currentDraft } as Table;
+        if (finalized.shape === 'rect') {
+          let { x, y, width = 0, height = 0 } = finalized;
+          if (width < 0) {
+            x += width;
+            width = Math.abs(width);
+          }
+          if (height < 0) {
+            y += height;
+            height = Math.abs(height);
+          }
+          if (width === 0 && height === 0) {
+            width = 2;
+            height = 1;
+          }
+          finalized = { ...finalized, x, y, width, height } as Table;
+        } else if (finalized.shape === 'circle') {
+          if ((finalized.radius || 0) === 0) finalized.radius = 1;
+        }
+
+        setTables((prevTables) => [...prevTables, finalized]);
+        setDraftTable(null);
+        draftRef.current = null;
+        setAddingTable(false);
+        drawingStart.current = null;
+        window.removeEventListener('mousemove', handleGlobalMouseMove);
+      };
+
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp, { once: true });
+    } else {
+      handlePanMouseDown(e);
+    }
+  };
+
+  // Al hacer doble clic se abre el modal de edición en lugar de usar prompts.
   const handleEditTable = (
     index: number,
     e: React.MouseEvent<SVGTextElement, MouseEvent>
   ) => {
     e.stopPropagation();
-    // Solo permitimos editar si estamos en modo edición
-    if (!isEditing) return;
     const table = tables[index];
-    const newName = prompt('Ingrese el nuevo nombre:', table.name);
-    if (newName === null) return;
-    const newWidthStr = prompt('Ingrese el ancho (m):', table.width.toString());
-    const newHeightStr = prompt(
-      'Ingrese el alto (m):',
-      table.height.toString()
-    );
-    if (newWidthStr === null || newHeightStr === null) return;
-    const newWidth = parseFloat(newWidthStr);
-    const newHeight = parseFloat(newHeightStr);
-    const updatedTables = [...tables];
-    updatedTables[index] = {
-      ...table,
-      name: newName,
-      width: newWidth,
-      height: newHeight,
-    };
-    setTables(updatedTables);
+    if (!table || !isEditing) return;
+    setTableToEdit({ ...table });
   };
 
-  // Nueva función para eliminar una mesa
   const handleDeleteTable = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('¿Eliminar esta mesa?')) {
-      const updatedTables = tables.filter((_, i) => i !== index);
-      setTables(updatedTables);
-    }
+    setTables((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Fondo cuadriculado para el editor de mesas
-  // Dentro de TableEditor, antes de renderizar el SVG:
-  const gridVerticalLines = Array.from({
-    length: Math.ceil(svgSize.width / scale),
-  }).map((_, i) => (
-    <line
-      key={`v-${i}`}
-      x1={i * scale}
-      y1={0}
-      x2={i * scale}
-      y2={svgSize.height}
-      stroke="#ccc"
-      strokeWidth="1"
-    />
-  ));
+  // Actualiza el valor en el modal cuando el usuario cambia un campo.
+  const handleModalChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: keyof Table
+  ) => {
+    if (!tableToEdit) return;
+    const value = e.target.value;
+    setTableToEdit({
+      ...tableToEdit,
+      [field]: field === 'name' ? value : parseFloat(value) || 0,
+    });
+  };
 
-  const gridHorizontalLines = Array.from({
-    length: Math.ceil(svgSize.height / scale),
-  }).map((_, i) => (
-    <line
-      key={`h-${i}`}
-      x1={0}
-      y1={i * scale}
-      x2={svgSize.width}
-      y2={i * scale}
-      stroke="#ccc"
-      strokeWidth="1"
-    />
-  ));
+  // Guarda los cambios realizados en el modal.
+  const handleModalSave = () => {
+    if (!tableToEdit) return;
+    setTables((prevTables) =>
+      prevTables.map((tbl) => (tbl.id === tableToEdit.id ? tableToEdit : tbl))
+    );
+    setTableToEdit(null);
+  };
+
+  // Cancela la edición y cierra el modal.
+  const handleModalCancel = () => {
+    setTableToEdit(null);
+  };
 
   return (
     <div>
       <div style={{ margin: '0.5rem', display: 'flex', gap: '0.5rem' }}>
         <button onClick={toggleEditMode}>
-          {isEditing ? 'Salir de Modo Edición' : 'Entrar en Modo Edición'}
+          {isEditing ? 'Salir de Modo Edición' : 'Editar'}
         </button>
-        <button onClick={onSwitchToSalon}>Volver a Modo Salón</button>
+        <button onClick={onSwitchToSalon} disabled={isEditing}>
+          Editar Salón
+        </button>
+        {isEditing && (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              onClick={() => startAddTable('rect')}
+              style={
+                addingTable && selectedShape === 'rect'
+                  ? activeButtonStyle
+                  : inactiveButtonStyle
+              }
+            >
+              Crear Mesa Rectangular
+            </button>
+            <button
+              onClick={() => startAddTable('circle')}
+              style={
+                addingTable && selectedShape === 'circle'
+                  ? activeButtonStyle
+                  : inactiveButtonStyle
+              }
+            >
+              Crear Mesa Redonda
+            </button>
+          </div>
+        )}
       </div>
+      <input
+        type="range"
+        min="0.1"
+        max="3"
+        step="0.1"
+        value={currentZoom}
+        onChange={handleZoomChange}
+        style={{ margin: '0.5rem' }}
+      />
       <svg
+        id="svg-canvas"
         width={svgSize.width}
         height={svgSize.height}
-        onDoubleClick={handleAddTable}
+        onMouseDown={handleSVGMouseDown}
         style={{
           border: '1px solid #ddd',
-          cursor: isEditing ? 'crosshair' : 'default',
+          cursor: addingTable ? 'crosshair' : 'default',
         }}
-        onMouseDown={handlePanMouseDown}
       >
-        <g transform={`translate(${position.x}, ${position.y}) scale(${zoom})`}>
-          {/* Renderiza la cuadrícula solo si showGrid es true */}
-          {showGrid && (
-            <g>
-              {gridVerticalLines}
-              {gridHorizontalLines}
-            </g>
-          )}
-          {/* Se muestra la figura guardada del salón (únicamente el polígono) */}
+        <g
+          transform={`translate(${position.x}, ${position.y}) scale(${currentZoom})`}
+        >
+          {showGrid && <g>{/* Líneas de la cuadrícula */}</g>}
           {salonPolygon && (
             <polygon
               points={salonPolygon
@@ -188,24 +320,67 @@ const TableEditor: React.FC<TableEditorProps> = ({
               strokeWidth="2"
             />
           )}
+          {draftTable && draftTable.shape === 'rect' ? (
+            <rect
+              x={draftTable.x * scale}
+              y={draftTable.y * scale}
+              width={(draftTable.width || 0) * scale}
+              height={(draftTable.height || 0) * scale}
+              fill="rgba(0, 0, 255, 0.3)"
+              stroke="blue"
+              strokeDasharray="4"
+              strokeWidth="2"
+            />
+          ) : draftTable ? (
+            <circle
+              cx={draftTable.x * scale}
+              cy={draftTable.y * scale}
+              r={(draftTable.radius || 0) * scale}
+              fill="rgba(0, 0, 255, 0.3)"
+              stroke="blue"
+              strokeDasharray="4"
+              strokeWidth="2"
+            />
+          ) : null}
           {tables.map((table, index) => (
             <g key={table.id}>
-              <rect
-                x={table.x * scale}
-                y={table.y * scale}
-                width={table.width * scale}
-                height={table.height * scale}
-                fill="rgba(0, 0, 255, 0.3)"
-                stroke="blue"
-                strokeWidth="2"
-                cursor="move"
-                onMouseDown={(e) => handleTableMouseDown(index, e)}
-              />
+              {table.shape === 'rect' ? (
+                <rect
+                  x={table.x * scale}
+                  y={table.y * scale}
+                  width={(table.width || 0) * scale}
+                  height={(table.height || 0) * scale}
+                  fill="rgba(0, 0, 255, 0.3)"
+                  stroke="blue"
+                  strokeWidth="2"
+                  cursor={isEditing ? 'move' : 'default'}
+                  onMouseDown={(e) => handleTableMouseDown(index, e)}
+                />
+              ) : (
+                <circle
+                  cx={table.x * scale}
+                  cy={table.y * scale}
+                  r={(table.radius || 0) * scale}
+                  fill="rgba(0, 0, 255, 0.3)"
+                  stroke="blue"
+                  strokeWidth="2"
+                  cursor={isEditing ? 'move' : 'default'}
+                  onMouseDown={(e) => handleTableMouseDown(index, e)}
+                />
+              )}
               <text
-                x={(table.x + table.width / 2) * scale}
-                y={(table.y + table.height / 2) * scale}
+                x={
+                  table.shape === 'rect'
+                    ? (table.x + (table.width || 0) / 2) * scale
+                    : table.x * scale
+                }
+                y={
+                  table.shape === 'rect'
+                    ? (table.y + (table.height || 0) / 2) * scale
+                    : table.y * scale
+                }
                 fill="black"
-                fontSize="12"
+                fontSize={12}
                 textAnchor="middle"
                 onDoubleClick={(e) => handleEditTable(index, e)}
                 style={{ userSelect: 'none', pointerEvents: 'all' }}
@@ -214,10 +389,18 @@ const TableEditor: React.FC<TableEditorProps> = ({
               </text>
               {isEditing && (
                 <text
-                  x={(table.x + table.width) * scale - 10}
-                  y={table.y * scale + 15}
+                  x={
+                    table.shape === 'rect'
+                      ? (table.x + (table.width || 0)) * scale - 10
+                      : table.x * scale + (table.radius || 0) * scale - 10
+                  }
+                  y={
+                    table.shape === 'rect'
+                      ? table.y * scale + 15
+                      : table.y * scale + (table.radius || 0) * scale + 5
+                  }
                   fill="red"
-                  fontSize="14"
+                  fontSize={14}
                   style={{ cursor: 'pointer', userSelect: 'none' }}
                   onClick={(e) => handleDeleteTable(index, e)}
                 >
@@ -228,6 +411,92 @@ const TableEditor: React.FC<TableEditorProps> = ({
           ))}
         </g>
       </svg>
+
+      {/* Modal para editar la mesa */}
+      {tableToEdit && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              padding: '1rem',
+              borderRadius: '5px',
+              minWidth: '300px',
+            }}
+          >
+            <h3>Editar Mesa {tableToEdit.id}</h3>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+              }}
+            >
+              <label>
+                Nombre:
+                <input
+                  type="text"
+                  value={tableToEdit.name}
+                  onChange={(e) => handleModalChange(e, 'name')}
+                />
+              </label>
+              {tableToEdit.shape === 'rect' && (
+                <>
+                  <label>
+                    Ancho (m):
+                    <input
+                      type="number"
+                      value={tableToEdit.width || 0}
+                      onChange={(e) => handleModalChange(e, 'width')}
+                    />
+                  </label>
+                  <label>
+                    Alto (m):
+                    <input
+                      type="number"
+                      value={tableToEdit.height || 0}
+                      onChange={(e) => handleModalChange(e, 'height')}
+                    />
+                  </label>
+                </>
+              )}
+              {tableToEdit.shape === 'circle' && (
+                <label>
+                  Radio (m):
+                  <input
+                    type="number"
+                    value={tableToEdit.radius || 0}
+                    onChange={(e) => handleModalChange(e, 'radius')}
+                  />
+                </label>
+              )}
+            </div>
+            <div
+              style={{
+                marginTop: '1rem',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '0.5rem',
+              }}
+            >
+              <button onClick={handleModalCancel}>Cancelar</button>
+              <button onClick={handleModalSave}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
