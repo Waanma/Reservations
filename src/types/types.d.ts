@@ -27,8 +27,9 @@ export type PricingSlot = {
   price: number;
 };
 
-export type Config = {
-  reservationTime: number;
-  timeBetweenReservations: number;
-  pricingSchedule: PricingSlot[];
+export type PricingSchedule = {
+  day: string;
+  startTime: string;
+  endTime: string;
+  price: number;
 };

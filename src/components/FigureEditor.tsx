@@ -5,8 +5,7 @@ import { Table } from '@/types/types';
 import Configuration from './Configuration';
 
 function getNewTableId(tables: Table[]): number {
-  if (tables.length === 0) return 1;
-  return Math.max(...tables.map((t) => t.id)) + 1;
+  return tables.length === 0 ? 1 : Math.max(...tables.map((t) => t.id)) + 1;
 }
 
 interface TableEditorProps {
@@ -43,26 +42,17 @@ const FigureEditor: React.FC<TableEditorProps> = ({
   const draftRef = useRef<Table | null>(null);
 
   const [tableToEdit, setTableToEdit] = useState<Table | null>(null);
+  // Estado para las pestañas del modal: 'figura' o 'configuracion'
+  const [activeTab, setActiveTab] = useState<'figura' | 'configuration'>(
+    'figura'
+  );
 
   useEffect(() => {
     console.log('--- Render TableEditor ---');
-    console.log(
-      'isEditing:',
-      isEditing,
-      'addingTable:',
-      addingTable,
-      'draftTable:',
-      draftTable
-    );
-    console.log('tables:', tables);
   }, [isEditing, addingTable, draftTable, tables]);
 
   const toggleEditMode = () => {
-    setIsEditing((prev) => {
-      const newState = !prev;
-      console.log('isEditing:', newState);
-      return newState;
-    });
+    setIsEditing((prev) => !prev);
     setAddingTable(false);
   };
 
@@ -115,7 +105,6 @@ const FigureEditor: React.FC<TableEditorProps> = ({
   ) => {
     if (addingTable) {
       if (draftTable) return;
-
       const svgRect = e.currentTarget.getBoundingClientRect();
       const startX =
         (e.clientX - svgRect.left - position.x) / (scale * currentZoom);
@@ -155,7 +144,7 @@ const FigureEditor: React.FC<TableEditorProps> = ({
           (scale * currentZoom);
         setDraftTable((prev) => {
           if (!prev || !drawingStart.current) return prev;
-          const updated = { ...prev } as Table;
+          const updated = { ...prev };
           if (updated.shape === 'rect') {
             updated.width = x - drawingStart.current.x;
             updated.height = y - drawingStart.current.y;
@@ -171,12 +160,12 @@ const FigureEditor: React.FC<TableEditorProps> = ({
       };
 
       const handleGlobalMouseUp = () => {
-        const currentDraft = draftRef.current!;
+        const currentDraft = draftRef.current;
         if (!currentDraft || !drawingStart.current) {
           setAddingTable(false);
           return;
         }
-        let finalized = { ...currentDraft } as Table;
+        let finalized = { ...currentDraft };
         if (finalized.shape === 'rect') {
           let { x, y, width = 0, height = 0 } = finalized;
           if (width < 0) {
@@ -191,12 +180,11 @@ const FigureEditor: React.FC<TableEditorProps> = ({
             width = 2;
             height = 1;
           }
-          finalized = { ...finalized, x, y, width, height } as Table;
+          finalized = { ...finalized, x, y, width, height };
         } else if (finalized.shape === 'circle') {
           if ((finalized.radius || 0) === 0) finalized.radius = 1;
         }
-
-        setTables((prevTables) => [...prevTables, finalized]);
+        setTables((prev) => [...prev, finalized]);
         setDraftTable(null);
         draftRef.current = null;
         setAddingTable(false);
@@ -219,6 +207,7 @@ const FigureEditor: React.FC<TableEditorProps> = ({
     const table = tables[index];
     if (!table || !isEditing) return;
     setTableToEdit({ ...table });
+    setActiveTab('figura');
   };
 
   const handleDeleteTable = (index: number, e: React.MouseEvent) => {
@@ -240,8 +229,8 @@ const FigureEditor: React.FC<TableEditorProps> = ({
 
   const handleModalSave = () => {
     if (!tableToEdit) return;
-    setTables((prevTables) =>
-      prevTables.map((tbl) => (tbl.id === tableToEdit.id ? tableToEdit : tbl))
+    setTables((prev) =>
+      prev.map((tbl) => (tbl.id === tableToEdit.id ? tableToEdit : tbl))
     );
     setTableToEdit(null);
   };
@@ -252,7 +241,6 @@ const FigureEditor: React.FC<TableEditorProps> = ({
 
   return (
     <div className="space-y-6">
-      <Configuration />
       <div className="flex gap-4">
         <button
           onClick={toggleEditMode}
@@ -271,7 +259,6 @@ const FigureEditor: React.FC<TableEditorProps> = ({
         >
           Edit Perimeter
         </button>
-
         {isEditing && (
           <div className="flex gap-4 items-center">
             <button
@@ -316,7 +303,7 @@ const FigureEditor: React.FC<TableEditorProps> = ({
         <g
           transform={`translate(${position.x}, ${position.y}) scale(${currentZoom})`}
         >
-          {showGrid && <g>{/* Líneas de la cuadrícula */}</g>}
+          {showGrid && <g>{/* Grid lines here */}</g>}
           {salonPolygon && (
             <polygon
               points={salonPolygon
@@ -419,68 +406,108 @@ const FigureEditor: React.FC<TableEditorProps> = ({
         </g>
       </svg>
 
+      {/* Modal para editar figura y configuración */}
       {tableToEdit && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg w-96">
-            <h3>Edit {tableToEdit.id}</h3>
-            <div className="space-y-4 mt-4">
-              <label className="block">
-                Name:
-                <input
-                  type="text"
-                  value={tableToEdit.name}
-                  onChange={(e) => handleModalChange(e, 'name')}
-                  className="mt-1 p-2 border rounded w-full"
-                />
-              </label>
-              {tableToEdit.shape === 'rect' && (
-                <>
+          <div className="bg-white p-6 rounded-lg w-4/6 relative">
+            {/* Botón de cierre global del modal */}
+            <button
+              onClick={handleModalCancel}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              X
+            </button>
+            {/* Encabezado con pestañas */}
+            <div className="flex justify-center border-b mb-4">
+              <button
+                onClick={() => setActiveTab('figura')}
+                className={`py-2 px-4 ${
+                  activeTab === 'figura'
+                    ? 'border-b-2 border-blue-500 font-bold'
+                    : ''
+                }`}
+              >
+                Figura
+              </button>
+              <button
+                onClick={() => setActiveTab('configuration')}
+                className={`py-2 px-4 ${
+                  activeTab === 'configuration'
+                    ? 'border-b-2 border-blue-500 font-bold'
+                    : ''
+                }`}
+              >
+                Configuration
+              </button>
+            </div>
+            {activeTab === 'figura' ? (
+              <div>
+                <h3 className="text-lg font-semibold mb-4">
+                  Editar Figura {tableToEdit.id}
+                </h3>
+                <div className="space-y-4">
                   <label className="block">
-                    Width (m):
+                    Name:
                     <input
-                      type="number"
-                      value={tableToEdit.width || 0}
-                      onChange={(e) => handleModalChange(e, 'width')}
+                      type="text"
+                      value={tableToEdit.name}
+                      onChange={(e) => handleModalChange(e, 'name')}
                       className="mt-1 p-2 border rounded w-full"
                     />
                   </label>
-                  <label className="block">
-                    Height (m):
-                    <input
-                      type="number"
-                      value={tableToEdit.height || 0}
-                      onChange={(e) => handleModalChange(e, 'height')}
-                      className="mt-1 p-2 border rounded w-full"
-                    />
-                  </label>
-                </>
-              )}
-              {tableToEdit.shape === 'circle' && (
-                <label className="block">
-                  Radius (m):
-                  <input
-                    type="number"
-                    value={tableToEdit.radius || 0}
-                    onChange={(e) => handleModalChange(e, 'radius')}
-                    className="mt-1 p-2 border rounded w-full"
-                  />
-                </label>
-              )}
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={handleModalCancel}
-                className="py-2 px-4 bg-gray-400 text-white rounded"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleModalSave}
-                className="py-2 px-4 bg-blue-500 text-white rounded"
-              >
-                Save
-              </button>
-            </div>
+                  {tableToEdit.shape === 'rect' ? (
+                    <>
+                      <label className="block">
+                        Width (m):
+                        <input
+                          type="number"
+                          value={tableToEdit.width || 0}
+                          onChange={(e) => handleModalChange(e, 'width')}
+                          className="mt-1 p-2 border rounded w-full"
+                        />
+                      </label>
+                      <label className="block">
+                        Height (m):
+                        <input
+                          type="number"
+                          value={tableToEdit.height || 0}
+                          onChange={(e) => handleModalChange(e, 'height')}
+                          className="mt-1 p-2 border rounded w-full"
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <label className="block">
+                      Radius (m):
+                      <input
+                        type="number"
+                        value={tableToEdit.radius || 0}
+                        onChange={(e) => handleModalChange(e, 'radius')}
+                        className="mt-1 p-2 border rounded w-full"
+                      />
+                    </label>
+                  )}
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    onClick={handleModalCancel}
+                    className="py-2 px-4 bg-gray-400 text-white rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleModalSave}
+                    className="py-2 px-4 bg-blue-500 text-white rounded"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <Configuration onClose={handleModalCancel} />
+              </div>
+            )}
           </div>
         </div>
       )}

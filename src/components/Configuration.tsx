@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Config, PricingSlot } from '../types/types';
 
-// Array con los días de la semana
+interface ConfigurationProps {
+  onClose: () => void;
+}
+
+// Array con los días de la semana (en inglés, puedes adaptarlo)
 const daysOfWeek: string[] = [
   'Monday',
   'Tuesday',
@@ -14,162 +17,202 @@ const daysOfWeek: string[] = [
   'Sunday',
 ];
 
-const Configuration: React.FC = () => {
+interface PricingSlot {
+  startTime: string;
+  endTime: string;
+  price: number;
+}
+
+interface PricingDay {
+  day: string;
+  slots: PricingSlot[];
+}
+
+interface Config {
+  reservationTime: number;
+  timeBetweenReservations: number;
+  pricingSchedule: PricingDay[];
+}
+
+const Configuration: React.FC<ConfigurationProps> = () => {
   const [config, setConfig] = useState<Config>({
     reservationTime: 30,
     timeBetweenReservations: 15,
     pricingSchedule: [
-      { day: 'Monday', startTime: '08:00', endTime: '12:00', price: 50 },
-      { day: 'Monday', startTime: '12:00', endTime: '18:00', price: 60 },
+      {
+        day: 'Monday',
+        slots: [{ startTime: '00:00', endTime: '00:00', price: 0 }],
+      },
     ],
   });
 
-  // Actualiza la propiedad indicada de la configuración
-  const handleConfigChange = (
-    key: keyof Config,
-    value: number | PricingSlot[]
-  ) => {
-    setConfig((prevConfig) => ({
-      ...prevConfig,
-      [key]: value,
-    }));
+  const handleReservationTimeChange = (value: number) => {
+    setConfig((prev) => ({ ...prev, reservationTime: value }));
   };
 
-  // Actualiza un campo específico de un pricing slot
-  const handlePricingSlotChange = (
-    index: number,
+  const handleTimeBetweenReservationsChange = (value: number) => {
+    setConfig((prev) => ({ ...prev, timeBetweenReservations: value }));
+  };
+
+  const handleDayChange = (dayIndex: number, newDay: string) => {
+    const updatedSchedule = config.pricingSchedule.map((pricingDay, index) =>
+      index === dayIndex ? { ...pricingDay, day: newDay } : pricingDay
+    );
+    setConfig({ ...config, pricingSchedule: updatedSchedule });
+  };
+
+  const handleSlotChange = (
+    dayIndex: number,
+    slotIndex: number,
     field: keyof PricingSlot,
     value: string | number
   ) => {
-    const updatedSchedule = config.pricingSchedule.map((slot, idx) => {
-      if (idx === index) {
-        return { ...slot, [field]: value };
+    const updatedSchedule = config.pricingSchedule.map((pricingDay, dIndex) => {
+      if (dIndex === dayIndex) {
+        const updatedSlots = pricingDay.slots.map((slot, sIndex) =>
+          sIndex === slotIndex ? { ...slot, [field]: value } : slot
+        );
+        return { ...pricingDay, slots: updatedSlots };
       }
-      return slot;
+      return pricingDay;
     });
-    handleConfigChange('pricingSchedule', updatedSchedule);
+    setConfig({ ...config, pricingSchedule: updatedSchedule });
   };
 
-  // Agrega un nuevo pricing slot con valores iniciales
-  const addPricingSlot = () => {
+  const addSlot = (dayIndex: number) => {
     const newSlot: PricingSlot = {
-      day: 'Monday', // Valor por defecto, se puede modificar con el selector
       startTime: '00:00',
       endTime: '00:00',
       price: 0,
     };
-    handleConfigChange('pricingSchedule', [...config.pricingSchedule, newSlot]);
+    const updatedSchedule = config.pricingSchedule.map((pricingDay, dIndex) => {
+      if (dIndex === dayIndex) {
+        return { ...pricingDay, slots: [...pricingDay.slots, newSlot] };
+      }
+      return pricingDay;
+    });
+    setConfig({ ...config, pricingSchedule: updatedSchedule });
   };
 
-  // Elimina un pricing slot por su índice
-  const removePricingSlot = (index: number) => {
+  const removeSlot = (dayIndex: number, slotIndex: number) => {
+    const updatedSchedule = config.pricingSchedule.map((pricingDay, dIndex) => {
+      if (dIndex === dayIndex) {
+        const updatedSlots = pricingDay.slots.filter(
+          (_, sIndex) => sIndex !== slotIndex
+        );
+        return { ...pricingDay, slots: updatedSlots };
+      }
+      return pricingDay;
+    });
+    setConfig({ ...config, pricingSchedule: updatedSchedule });
+  };
+
+  const addDay = () => {
+    const newDay: PricingDay = {
+      day: 'Monday',
+      slots: [{ startTime: '00:00', endTime: '00:00', price: 0 }],
+    };
+    setConfig({
+      ...config,
+      pricingSchedule: [...config.pricingSchedule, newDay],
+    });
+  };
+
+  const removeDay = (dayIndex: number) => {
     const updatedSchedule = config.pricingSchedule.filter(
-      (_, idx) => idx !== index
+      (_, index) => index !== dayIndex
     );
-    handleConfigChange('pricingSchedule', updatedSchedule);
+    setConfig({ ...config, pricingSchedule: updatedSchedule });
   };
 
   return (
-    <div className="max-w-4xl mx-auto my-8 p-6 bg-white rounded-lg shadow-md">
-      <h3 className="text-3xl font-semibold text-gray-800 mb-8">
-        Configuration
+    <div className="relative p-4 max-h-[80vh] overflow-y-auto">
+      <h3 className="text-xl font-semibold text-gray-800 mb-4">
+        Setting prices by time
       </h3>
 
-      {/* Reservation Time */}
-      <div className="mb-6">
-        <label className="block text-gray-700 font-medium mb-2">
-          Reservation Time (minutes):
-        </label>
-        <input
-          type="number"
-          value={config.reservationTime}
-          onChange={(e) =>
-            handleConfigChange('reservationTime', Number(e.target.value))
-          }
-          className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
-        />
+      {/* Botón para agregar un día */}
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={addDay}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+        >
+          Add Day
+        </button>
       </div>
 
-      {/* Time Between Reservations */}
-      <div className="mb-6">
-        <label className="block text-gray-700 font-medium mb-2">
-          Time Between Reservations (minutes):
-        </label>
-        <input
-          type="number"
-          value={config.timeBetweenReservations}
-          onChange={(e) =>
-            handleConfigChange(
-              'timeBetweenReservations',
-              Number(e.target.value)
-            )
-          }
-          className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
-        />
-      </div>
+      {/* Bloques por cada día */}
+      {config.pricingSchedule.map((pricingDay, dayIndex) => (
+        <div key={dayIndex} className="mb-4 border border-gray-200 rounded p-4">
+          <div className="flex justify-between items-center mb-2">
+            <div className="w-1/2">
+              <label className="block text-gray-700 font-medium mb-1">
+                Day:
+              </label>
+              <select
+                value={pricingDay.day}
+                onChange={(e) => handleDayChange(dayIndex, e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+              >
+                {daysOfWeek.map((day) => (
+                  <option key={day} value={day}>
+                    {day}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <button
+                onClick={() => removeDay(dayIndex)}
+                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300"
+              >
+                Delete Day
+              </button>
+            </div>
+          </div>
 
-      {/* Pricing Schedule */}
-      <div>
-        <h4 className="text-2xl font-semibold text-gray-800 mb-6">
-          Pricing Schedule
-        </h4>
-        {config.pricingSchedule.map((slot, index) => (
-          <div
-            key={index}
-            className="mb-6 p-4 border border-gray-200 rounded shadow-sm"
-          >
-            <div className="grid grid-cols-2 gap-4">
-              {/* Day */}
+          {/* Franjas horarias */}
+          {pricingDay.slots.map((slot, slotIndex) => (
+            <div
+              key={slotIndex}
+              className="grid grid-cols-4 gap-2 items-end mb-2"
+            >
               <div>
                 <label className="block text-gray-700 font-medium mb-1">
-                  Day:
-                </label>
-                <select
-                  value={slot.day}
-                  onChange={(e) =>
-                    handlePricingSlotChange(index, 'day', e.target.value)
-                  }
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
-                >
-                  {daysOfWeek.map((day) => (
-                    <option key={day} value={day}>
-                      {day}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Start Time */}
-              <div>
-                <label className="block text-gray-700 font-medium mb-1">
-                  Start Time:
+                  Start at:
                 </label>
                 <input
                   type="time"
                   value={slot.startTime}
                   onChange={(e) =>
-                    handlePricingSlotChange(index, 'startTime', e.target.value)
+                    handleSlotChange(
+                      dayIndex,
+                      slotIndex,
+                      'startTime',
+                      e.target.value
+                    )
                   }
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full p-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
               </div>
-
-              {/* End Time */}
               <div>
                 <label className="block text-gray-700 font-medium mb-1">
-                  End Time:
+                  End at:
                 </label>
                 <input
                   type="time"
                   value={slot.endTime}
                   onChange={(e) =>
-                    handlePricingSlotChange(index, 'endTime', e.target.value)
+                    handleSlotChange(
+                      dayIndex,
+                      slotIndex,
+                      'endTime',
+                      e.target.value
+                    )
                   }
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full p-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
               </div>
-
-              {/* Price */}
               <div>
                 <label className="block text-gray-700 font-medium mb-1">
                   Price:
@@ -178,34 +221,60 @@ const Configuration: React.FC = () => {
                   type="number"
                   value={slot.price}
                   onChange={(e) =>
-                    handlePricingSlotChange(
-                      index,
+                    handleSlotChange(
+                      dayIndex,
+                      slotIndex,
                       'price',
                       Number(e.target.value)
                     )
                   }
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full p-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
               </div>
+              <div>
+                <button
+                  onClick={() => removeSlot(dayIndex, slotIndex)}
+                  className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
+          ))}
 
-            <div className="mt-4">
-              <button
-                onClick={() => removePricingSlot(index)}
-                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300"
-              >
-                Remove Slot
-              </button>
-            </div>
-          </div>
-        ))}
+          <button
+            onClick={() => addSlot(dayIndex)}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          >
+            Add time slot
+          </button>
+        </div>
+      ))}
 
-        <button
-          onClick={addPricingSlot}
-          className="bg-blue-500 text-white px-6 py-3 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-        >
-          Add Pricing Slot
-        </button>
+      {/* Campos adicionales */}
+      <div className="mb-4">
+        <label className="block text-gray-700 font-medium mb-1">
+          Reservation time (minutes):
+        </label>
+        <input
+          type="number"
+          value={config.reservationTime}
+          onChange={(e) => handleReservationTimeChange(Number(e.target.value))}
+          className="w-full p-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+        />
+      </div>
+      <div>
+        <label className="block text-gray-700 font-medium mb-1">
+          Time between reservations (minutes):
+        </label>
+        <input
+          type="number"
+          value={config.timeBetweenReservations}
+          onChange={(e) =>
+            handleTimeBetweenReservationsChange(Number(e.target.value))
+          }
+          className="w-full p-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+        />
       </div>
     </div>
   );

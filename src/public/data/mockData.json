@@ -10,7 +10,7 @@
   "tables": [
     {
       "id": 1,
-      "name": "Table 1",
+      "name": "Figure 1",
       "x": 1,
       "y": 1,
       "width": 2,
@@ -19,7 +19,7 @@
     },
     {
       "id": 2,
-      "name": "Table 2",
+      "name": "Figure 2",
       "x": 4,
       "y": 2,
       "width": 2,
@@ -28,7 +28,7 @@
     },
     {
       "id": 3,
-      "name": "Table 3",
+      "name": "Figure 3",
       "x": 7,
       "y": 3,
       "width": 3,
@@ -37,7 +37,7 @@
     },
     {
       "id": 4,
-      "name": "Table 4",
+      "name": "Figure 4",
       "x": 2,
       "y": 4,
       "width": 2,
@@ -46,7 +46,7 @@
     },
     {
       "id": 5,
-      "name": "Circle Table 1",
+      "name": "Figure 5",
       "x": 6,
       "y": 6,
       "radius": 2,
