@@ -9,7 +9,7 @@ export type Table = {
   radius?: number; // Solo aplica para mesas redondas
 };
 
-export type Salon = {
+export type Perimeter = {
   coordinates: number[][]; // Coordinates defining the shape of the salon
   setCoordinates: (coordinates: number[][]) => void; // Function to update salon coordinates
 };
@@ -25,4 +25,10 @@ export type PricingSlot = {
   startTime: string;
   endTime: string;
   price: number;
+};
+
+export type Config = {
+  reservationTime: number;
+  timeBetweenReservations: number;
+  pricingSchedule: PricingSlot[];
 };

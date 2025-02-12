@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { Salon, Table, Config } from '../types/types';
+import { Perimeter, Table, Config } from '../types/types';
 
 type Store = {
-  salon: Salon;
-  setSalon: (salon: Salon) => void;
+  salon: Perimeter;
+  setSalon: (salon: Perimeter) => void;
   tables: Table[];
   setTables: (tables: Table[]) => void;
   config: Config;

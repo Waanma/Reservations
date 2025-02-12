@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import TableEditor from '@/components/TableEditor';
+import TableEditor from '@/components/FigureEditor';
 import mockData from '@/public/data/mockData.json';
 import { Table } from '@/types/types';
 
-type Mode = 'salon' | 'mesas';
+type Mode = 'Perimeter' | 'Figures';
 
-const SalonEditor: React.FC = () => {
+const PerimeterEditor: React.FC = () => {
   // Coordenadas iniciales del salón (en metros)
   const initialCoordinates: number[][] = mockData.salon.coordinates;
 
@@ -16,7 +16,7 @@ const SalonEditor: React.FC = () => {
     return mockData.tables.length > 0
       ? mockData.tables.map((table, index) => ({
           id: table.id ?? index + 1,
-          name: table.name ?? `Mesa ${index + 1}`,
+          name: table.name ?? `Table ${index + 1}`,
           shape: table.shape === 'circle' ? 'circle' : 'rect',
           x: table.x ?? 0,
           y: table.y ?? 0,
@@ -47,10 +47,12 @@ const SalonEditor: React.FC = () => {
   const [savedSalon, setSavedSalon] = useState<number[][] | null>(null);
 
   // Tamaño responsivo del SVG (en píxeles)
+  // Tamaño responsivo del SVG (en píxeles)
   const [svgSize, setSvgSize] = useState({
-    width: window.innerWidth * 0.9,
-    height: window.innerHeight * 0.8,
+    width: 0,
+    height: 0,
   });
+
   useEffect(() => {
     const handleResize = () => {
       setSvgSize({
@@ -58,9 +60,16 @@ const SalonEditor: React.FC = () => {
         height: window.innerHeight * 0.8,
       });
     };
+
+    // Ejecutamos handleResize al montar el componente
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const handleSwitchMode = () => {
+    setEditMode(editMode === 'Perimeter' ? 'Figures' : 'Perimeter');
+  };
 
   // Actualiza las distancias entre vértices (el polígono es cerrado)
   useEffect(() => {
@@ -77,14 +86,14 @@ const SalonEditor: React.FC = () => {
   }, [salonCoordinates]);
 
   // Modo de edición: 'salon' para editar el salón, 'mesas' para editar mesas
-  const [editMode, setEditMode] = useState<Mode>('salon');
+  const [editMode, setEditMode] = useState<Mode>('Perimeter');
 
   // ---------- Funciones para el modo SALÓN ----------
   const handleVertexMouseDown = (
     index: number,
     e: React.MouseEvent<SVGCircleElement, MouseEvent>
   ) => {
-    if (editMode !== 'salon') return;
+    if (editMode !== 'Perimeter') return;
     e.stopPropagation();
     setMovingVertex(index);
     const startX = e.clientX;
@@ -135,7 +144,7 @@ const SalonEditor: React.FC = () => {
 
   // Agrega un vértice al hacer doble clic (proyecta sobre el segmento más cercano).
   const handleAddVertex = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
-    if (editMode !== 'salon') return;
+    if (editMode !== 'Perimeter') return;
     const rect = e.currentTarget.getBoundingClientRect();
     const P = {
       x: (e.clientX - rect.left - position.x) / (scaleRef.current * zoom),
@@ -205,7 +214,7 @@ const SalonEditor: React.FC = () => {
     index: number,
     e: React.MouseEvent<SVGCircleElement, MouseEvent>
   ) => {
-    if (editMode !== 'salon') return;
+    if (editMode !== 'Perimeter') return;
     e.preventDefault();
     if (salonCoordinates.length > 3) {
       pushHistory(salonCoordinates);
@@ -228,7 +237,7 @@ const SalonEditor: React.FC = () => {
     index2: number,
     e: React.MouseEvent<SVGTextElement, MouseEvent>
   ) => {
-    if (editMode !== 'salon') return;
+    if (editMode !== 'Perimeter') return;
     e.preventDefault();
     const currentDistance = distances[`${index1}-${index2}`];
     const newDistanceStr = prompt(
@@ -271,10 +280,10 @@ const SalonEditor: React.FC = () => {
 
   const handleSaveSalon = () => {
     setSavedSalon(salonCoordinates);
-    setEditMode('mesas');
+    setEditMode('Figures');
   };
 
-  if (editMode === 'mesas') {
+  if (editMode === 'Figures') {
     return (
       <TableEditor
         tables={tables}
@@ -284,7 +293,7 @@ const SalonEditor: React.FC = () => {
         position={position}
         svgSize={svgSize}
         salonPolygon={savedSalon}
-        onSwitchToSalon={() => setEditMode('salon')}
+        onSwitchToPerimeter={handleSwitchMode}
         handlePanMouseDown={handlePanMouseDown}
         showGrid={false}
       />
@@ -333,7 +342,7 @@ const SalonEditor: React.FC = () => {
   return (
     <div
       style={{
-        width: svgSize.width,
+        width: '100%',
         height: svgSize.height,
         border: '1px solid #ddd',
         display: 'flex',
@@ -350,7 +359,7 @@ const SalonEditor: React.FC = () => {
           justifyContent: 'space-between',
         }}
       >
-        <h2 style={{ margin: 0 }}>Salon Editor</h2>
+        <h2 style={{ margin: 0 }}>Perimeter Editor</h2>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <label htmlFor="zoomRange" style={{ marginRight: '0.5rem' }}>
             Zoom:
@@ -365,9 +374,12 @@ const SalonEditor: React.FC = () => {
             onChange={(e) => setZoom(parseFloat(e.target.value))}
             style={{ marginRight: '1rem' }}
           />
-          <button onClick={handleSaveSalon}>
-            Guardar Salón y Editar Mesas
-          </button>
+          <div
+            className="bg-green-500 items-center justify-center p-2 rounded-lg cursor-pointer"
+            onClick={handleSaveSalon}
+          >
+            <button>Save</button>
+          </div>
         </div>
       </header>
       <main style={{ flexGrow: 1, position: 'relative', overflow: 'hidden' }}>
@@ -465,4 +477,4 @@ const SalonEditor: React.FC = () => {
   );
 };
 
-export default SalonEditor;
+export default PerimeterEditor;

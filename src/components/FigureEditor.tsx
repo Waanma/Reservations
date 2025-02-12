@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Table } from '@/types/types';
-import { activeButtonStyle, inactiveButtonStyle } from '@/styles/buttonStyles';
+import Configuration from './Configuration';
 
 function getNewTableId(tables: Table[]): number {
   if (tables.length === 0) return 1;
@@ -17,12 +17,12 @@ interface TableEditorProps {
   position: { x: number; y: number };
   svgSize: { width: number; height: number };
   salonPolygon: number[][] | null;
-  onSwitchToSalon: () => void;
+  onSwitchToPerimeter: () => void;
   handlePanMouseDown: (e: React.MouseEvent<Element, MouseEvent>) => void;
   showGrid?: boolean;
 }
 
-const TableEditor: React.FC<TableEditorProps> = ({
+const FigureEditor: React.FC<TableEditorProps> = ({
   tables,
   setTables,
   scale,
@@ -30,20 +30,18 @@ const TableEditor: React.FC<TableEditorProps> = ({
   position,
   svgSize,
   salonPolygon,
-  onSwitchToSalon,
+  onSwitchToPerimeter,
   handlePanMouseDown,
   showGrid = true,
 }) => {
-  // Estados y refs
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [addingTable, setAddingTable] = useState<boolean>(false);
   const [selectedShape, setSelectedShape] = useState<'rect' | 'circle'>('rect');
   const [draftTable, setDraftTable] = useState<Table | null>(null);
   const [currentZoom, setCurrentZoom] = useState(zoom);
   const drawingStart = useRef<{ x: number; y: number } | null>(null);
-  const draftRef = useRef<Table | null>(null); // Para mantener el draft actualizado
+  const draftRef = useRef<Table | null>(null);
 
-  // Nuevo estado para mostrar el modal de edición
   const [tableToEdit, setTableToEdit] = useState<Table | null>(null);
 
   useEffect(() => {
@@ -60,7 +58,11 @@ const TableEditor: React.FC<TableEditorProps> = ({
   }, [isEditing, addingTable, draftTable, tables]);
 
   const toggleEditMode = () => {
-    setIsEditing((prev) => !prev);
+    setIsEditing((prev) => {
+      const newState = !prev;
+      console.log('isEditing:', newState);
+      return newState;
+    });
     setAddingTable(false);
   };
 
@@ -76,12 +78,11 @@ const TableEditor: React.FC<TableEditorProps> = ({
     drawingStart.current = null;
   };
 
-  // Permite arrastrar una mesa únicamente en modo edición.
   const handleTableMouseDown = (
     index: number,
     e: React.MouseEvent<SVGElement, MouseEvent>
   ) => {
-    if (!isEditing) return; // Solo se permite arrastrar en modo edición
+    if (!isEditing) return;
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -127,7 +128,7 @@ const TableEditor: React.FC<TableEditorProps> = ({
         selectedShape === 'rect'
           ? {
               id: newId,
-              name: `Mesa ${newId}`,
+              name: `Square ${newId}`,
               shape: 'rect',
               x: startX,
               y: startY,
@@ -136,7 +137,7 @@ const TableEditor: React.FC<TableEditorProps> = ({
             }
           : {
               id: newId,
-              name: `Mesa ${newId}`,
+              name: `Circle ${newId}`,
               shape: 'circle',
               x: startX,
               y: startY,
@@ -210,7 +211,6 @@ const TableEditor: React.FC<TableEditorProps> = ({
     }
   };
 
-  // Al hacer doble clic se abre el modal de edición en lugar de usar prompts.
   const handleEditTable = (
     index: number,
     e: React.MouseEvent<SVGTextElement, MouseEvent>
@@ -226,7 +226,6 @@ const TableEditor: React.FC<TableEditorProps> = ({
     setTables((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Actualiza el valor en el modal cuando el usuario cambia un campo.
   const handleModalChange = (
     e: React.ChangeEvent<HTMLInputElement>,
     field: keyof Table
@@ -239,7 +238,6 @@ const TableEditor: React.FC<TableEditorProps> = ({
     });
   };
 
-  // Guarda los cambios realizados en el modal.
   const handleModalSave = () => {
     if (!tableToEdit) return;
     setTables((prevTables) =>
@@ -248,41 +246,53 @@ const TableEditor: React.FC<TableEditorProps> = ({
     setTableToEdit(null);
   };
 
-  // Cancela la edición y cierra el modal.
   const handleModalCancel = () => {
     setTableToEdit(null);
   };
 
   return (
-    <div>
-      <div style={{ margin: '0.5rem', display: 'flex', gap: '0.5rem' }}>
-        <button onClick={toggleEditMode}>
-          {isEditing ? 'Salir de Modo Edición' : 'Editar'}
+    <div className="space-y-6">
+      <Configuration />
+      <div className="flex gap-4">
+        <button
+          onClick={toggleEditMode}
+          className="py-2 px-4 rounded bg-blue-500 text-white hover:bg-blue-600"
+        >
+          {isEditing ? 'Exit editing mode' : 'Edit Figures'}
         </button>
-        <button onClick={onSwitchToSalon} disabled={isEditing}>
-          Editar Salón
+        <button
+          onClick={onSwitchToPerimeter}
+          disabled={isEditing}
+          className={`py-2 px-4 rounded ${
+            isEditing
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+              : 'bg-blue-500 text-white cursor-pointer'
+          }`}
+        >
+          Edit Perimeter
         </button>
+
         {isEditing && (
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div className="flex gap-4 items-center">
             <button
               onClick={() => startAddTable('rect')}
-              style={
+              className={`py-2 px-4 rounded ${
                 addingTable && selectedShape === 'rect'
-                  ? activeButtonStyle
-                  : inactiveButtonStyle
-              }
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-300 text-gray-700'
+              }`}
             >
-              Crear Mesa Rectangular
+              Create Rectangle
             </button>
             <button
               onClick={() => startAddTable('circle')}
-              style={
+              className={`py-2 px-4 rounded ${
                 addingTable && selectedShape === 'circle'
-                  ? activeButtonStyle
-                  : inactiveButtonStyle
-              }
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-300 text-gray-700'
+              }`}
             >
-              Crear Mesa Redonda
+              Create Circle
             </button>
           </div>
         )}
@@ -294,17 +304,14 @@ const TableEditor: React.FC<TableEditorProps> = ({
         step="0.1"
         value={currentZoom}
         onChange={handleZoomChange}
-        style={{ margin: '0.5rem' }}
+        className="mt-4"
       />
       <svg
         id="svg-canvas"
         width={svgSize.width}
         height={svgSize.height}
         onMouseDown={handleSVGMouseDown}
-        style={{
-          border: '1px solid #ddd',
-          cursor: addingTable ? 'crosshair' : 'default',
-        }}
+        className="border border-gray-300 cursor-crosshair"
       >
         <g
           transform={`translate(${position.x}, ${position.y}) scale(${currentZoom})`}
@@ -383,7 +390,7 @@ const TableEditor: React.FC<TableEditorProps> = ({
                 fontSize={12}
                 textAnchor="middle"
                 onDoubleClick={(e) => handleEditTable(index, e)}
-                style={{ userSelect: 'none', pointerEvents: 'all' }}
+                className="select-none"
               >
                 {table.id} - {table.name}
               </text>
@@ -401,7 +408,7 @@ const TableEditor: React.FC<TableEditorProps> = ({
                   }
                   fill="red"
                   fontSize={14}
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  className="cursor-pointer select-none"
                   onClick={(e) => handleDeleteTable(index, e)}
                 >
                   ✕
@@ -412,87 +419,67 @@ const TableEditor: React.FC<TableEditorProps> = ({
         </g>
       </svg>
 
-      {/* Modal para editar la mesa */}
       {tableToEdit && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: '1rem',
-              borderRadius: '5px',
-              minWidth: '300px',
-            }}
-          >
-            <h3>Editar Mesa {tableToEdit.id}</h3>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-              }}
-            >
-              <label>
-                Nombre:
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg w-96">
+            <h3>Edit {tableToEdit.id}</h3>
+            <div className="space-y-4 mt-4">
+              <label className="block">
+                Name:
                 <input
                   type="text"
                   value={tableToEdit.name}
                   onChange={(e) => handleModalChange(e, 'name')}
+                  className="mt-1 p-2 border rounded w-full"
                 />
               </label>
               {tableToEdit.shape === 'rect' && (
                 <>
-                  <label>
-                    Ancho (m):
+                  <label className="block">
+                    Width (m):
                     <input
                       type="number"
                       value={tableToEdit.width || 0}
                       onChange={(e) => handleModalChange(e, 'width')}
+                      className="mt-1 p-2 border rounded w-full"
                     />
                   </label>
-                  <label>
-                    Alto (m):
+                  <label className="block">
+                    Height (m):
                     <input
                       type="number"
                       value={tableToEdit.height || 0}
                       onChange={(e) => handleModalChange(e, 'height')}
+                      className="mt-1 p-2 border rounded w-full"
                     />
                   </label>
                 </>
               )}
               {tableToEdit.shape === 'circle' && (
-                <label>
-                  Radio (m):
+                <label className="block">
+                  Radius (m):
                   <input
                     type="number"
                     value={tableToEdit.radius || 0}
                     onChange={(e) => handleModalChange(e, 'radius')}
+                    className="mt-1 p-2 border rounded w-full"
                   />
                 </label>
               )}
             </div>
-            <div
-              style={{
-                marginTop: '1rem',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '0.5rem',
-              }}
-            >
-              <button onClick={handleModalCancel}>Cancelar</button>
-              <button onClick={handleModalSave}>Guardar</button>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={handleModalCancel}
+                className="py-2 px-4 bg-gray-400 text-white rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleModalSave}
+                className="py-2 px-4 bg-blue-500 text-white rounded"
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>
@@ -501,4 +488,4 @@ const TableEditor: React.FC<TableEditorProps> = ({
   );
 };
 
-export default TableEditor;
+export default FigureEditor;
