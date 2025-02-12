@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useRef, useEffect } from 'react';
 import TableEditor from '@/components/FigureEditor';
 import mockData from '@/public/data/mockData.json';
@@ -40,13 +38,11 @@ const PerimeterEditor: React.FC = () => {
   const pushHistory = (coords: number[][]) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const cloned = coords.map((point) => [...point]);
-    // Se podría implementar lógica de historial aquí.
   };
 
   // Estado para guardar la figura final del salón
   const [savedSalon, setSavedSalon] = useState<number[][] | null>(null);
 
-  // Tamaño responsivo del SVG (en píxeles)
   // Tamaño responsivo del SVG (en píxeles)
   const [svgSize, setSvgSize] = useState({
     width: 0,
@@ -61,7 +57,6 @@ const PerimeterEditor: React.FC = () => {
       });
     };
 
-    // Ejecutamos handleResize al montar el componente
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -283,6 +278,36 @@ const PerimeterEditor: React.FC = () => {
     setEditMode('Figures');
   };
 
+  // Agregamos referencia y listener para el zoom con la rueda
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const zoomFactor = 0.1;
+      setZoom((prevZoom) =>
+        Math.max(
+          0.5,
+          Math.min(
+            e.deltaY < 0 ? prevZoom + zoomFactor : prevZoom - zoomFactor,
+            3
+          )
+        )
+      );
+    };
+
+    const svgEl = svgRef.current;
+    if (svgEl) {
+      svgEl.addEventListener('wheel', handleWheel, { passive: false });
+    }
+    return () => {
+      if (svgEl) {
+        svgEl.removeEventListener('wheel', handleWheel);
+      }
+    };
+  }, []);
+
   if (editMode === 'Figures') {
     return (
       <TableEditor
@@ -389,6 +414,7 @@ const PerimeterEditor: React.FC = () => {
           onMouseDown={handlePanMouseDown}
         >
           <svg
+            ref={svgRef}
             width="100%"
             height="100%"
             onDoubleClick={handleAddVertex}

@@ -8,6 +8,39 @@ function getNewTableId(tables: Table[]): number {
   return tables.length === 0 ? 1 : Math.max(...tables.map((t) => t.id)) + 1;
 }
 
+// Regla de fusión: define qué figuras se unen para que se muestre otra
+interface MergeRule {
+  mergeFrom: number[]; // IDs de las figuras base
+  mergeInto: number; // ID de la figura fusionada (ya creada)
+  activeFrom: string; // hora de inicio (formato "HH:MM")
+  activeTo: string; // hora de fin (formato "HH:MM")
+}
+
+// Ejemplo de regla: las figuras 1 y 2 se fusionan en la figura 3 de 15:00 a 18:00
+const mergeRules: MergeRule[] = [
+  {
+    mergeFrom: [1, 2],
+    mergeInto: 3,
+    activeFrom: '15:00',
+    activeTo: '18:00',
+  },
+];
+
+// Función que comprueba si una hora (en "HH:MM") se encuentra dentro de un rango
+const isTimeInRange = (
+  current: string,
+  start: string,
+  end: string
+): boolean => {
+  const [currentH, currentM] = current.split(':').map(Number);
+  const [startH, startM] = start.split(':').map(Number);
+  const [endH, endM] = end.split(':').map(Number);
+  const currentTotal = currentH * 60 + currentM;
+  const startTotal = startH * 60 + startM;
+  const endTotal = endH * 60 + endM;
+  return currentTotal >= startTotal && currentTotal <= endTotal;
+};
+
 interface TableEditorProps {
   tables: Table[];
   setTables: React.Dispatch<React.SetStateAction<Table[]>>;
@@ -40,12 +73,16 @@ const FigureEditor: React.FC<TableEditorProps> = ({
   const [currentZoom, setCurrentZoom] = useState(zoom);
   const drawingStart = useRef<{ x: number; y: number } | null>(null);
   const draftRef = useRef<Table | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const [tableToEdit, setTableToEdit] = useState<Table | null>(null);
   // Estado para las pestañas del modal: 'figura' o 'configuracion'
-  const [activeTab, setActiveTab] = useState<'figura' | 'configuration'>(
+  const [activeTab, setActiveTab] = useState<'figura' | 'configuracion'>(
     'figura'
   );
+
+  // Estado para simular la hora actual (en "HH:MM")
+  const [currentTime, setCurrentTime] = useState('14:00');
 
   useEffect(() => {
     console.log('--- Render TableEditor ---');
@@ -239,8 +276,72 @@ const FigureEditor: React.FC<TableEditorProps> = ({
     setTableToEdit(null);
   };
 
+  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const zoomFactor = 0.1;
+    // Si deltaY es negativo, se hace zoom in; si es positivo, zoom out.
+    const newZoom =
+      e.deltaY < 0 ? currentZoom + zoomFactor : currentZoom - zoomFactor;
+    // Aseguramos que el zoom se mantenga entre 0.1 y 3
+    setCurrentZoom(Math.max(0.1, Math.min(newZoom, 3)));
+  };
+
+  // --- Lógica de fusión de figuras --- //
+
+  // Determinar qué reglas están activas según la hora actual simulada
+  const activeMergeRules = mergeRules.filter((rule) =>
+    isTimeInRange(currentTime, rule.activeFrom, rule.activeTo)
+  );
+
+  // A partir de las reglas activas se filtran las figuras a mostrar
+  let visibleTables = tables;
+  activeMergeRules.forEach((rule) => {
+    visibleTables = visibleTables.filter(
+      (table) => !rule.mergeFrom.includes(table.id)
+    );
+  });
+
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const zoomFactor = 0.1;
+      setCurrentZoom((prevZoom) =>
+        Math.max(
+          0.1,
+          Math.min(
+            e.deltaY < 0 ? prevZoom + zoomFactor : prevZoom - zoomFactor,
+            3
+          )
+        )
+      );
+    };
+
+    const svgEl = svgRef.current;
+    if (svgEl) {
+      // Registramos el listener como no pasivo
+      svgEl.addEventListener('wheel', handleWheel, { passive: false });
+    }
+    return () => {
+      if (svgEl) {
+        svgEl.removeEventListener('wheel', handleWheel);
+      }
+    };
+  }, []);
+
   return (
     <div className="space-y-6">
+      {/* Simulador de hora actual */}
+      <div className="flex items-center gap-2">
+        <label className="font-medium">Current Time:</label>
+        <input
+          type="time"
+          value={currentTime}
+          onChange={(e) => setCurrentTime(e.target.value)}
+          className="p-1 border rounded"
+        />
+      </div>
+
       <div className="flex gap-4">
         <button
           onClick={toggleEditMode}
@@ -294,10 +395,12 @@ const FigureEditor: React.FC<TableEditorProps> = ({
         className="mt-4"
       />
       <svg
+        ref={svgRef}
         id="svg-canvas"
         width={svgSize.width}
         height={svgSize.height}
         onMouseDown={handleSVGMouseDown}
+        onWheel={handleWheel}
         className="border border-gray-300 cursor-crosshair"
       >
         <g
@@ -336,7 +439,7 @@ const FigureEditor: React.FC<TableEditorProps> = ({
               strokeWidth="2"
             />
           ) : null}
-          {tables.map((table, index) => (
+          {visibleTables.map((table, index) => (
             <g key={table.id}>
               {table.shape === 'rect' ? (
                 <rect
@@ -409,7 +512,7 @@ const FigureEditor: React.FC<TableEditorProps> = ({
       {/* Modal para editar figura y configuración */}
       {tableToEdit && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg w-4/6 relative">
+          <div className="bg-white p-6 rounded-lg w-96 relative">
             {/* Botón de cierre global del modal */}
             <button
               onClick={handleModalCancel}
@@ -430,14 +533,14 @@ const FigureEditor: React.FC<TableEditorProps> = ({
                 Figura
               </button>
               <button
-                onClick={() => setActiveTab('configuration')}
+                onClick={() => setActiveTab('configuracion')}
                 className={`py-2 px-4 ${
-                  activeTab === 'configuration'
+                  activeTab === 'configuracion'
                     ? 'border-b-2 border-blue-500 font-bold'
                     : ''
                 }`}
               >
-                Configuration
+                Configuración
               </button>
             </div>
             {activeTab === 'figura' ? (
@@ -505,6 +608,9 @@ const FigureEditor: React.FC<TableEditorProps> = ({
               </div>
             ) : (
               <div>
+                <h3 className="text-lg font-semibold mb-4">
+                  Configuración de Precios
+                </h3>
                 <Configuration onClose={handleModalCancel} />
               </div>
             )}
