@@ -1,5 +1,7 @@
 export type Table = {
   id: number;
+
+  mergeId?: number;
   name: string;
   shape: 'rect' | 'circle'; // Mesa rectangular o redonda
   x: number; // posición en metros (esquina superior izquierda o centro)
@@ -7,6 +9,8 @@ export type Table = {
   width?: number; // Solo aplica para mesas rectangulares
   height?: number; // Solo aplica para mesas rectangulares
   radius?: number; // Solo aplica para mesas redondas
+  color?: string;
+  mergedColor?: string;
 };
 
 export type Perimeter = {
@@ -37,7 +41,9 @@ export type PricingSchedule = {
 // Tipo para las reglas de fusión
 interface MergeRule {
   mergeFrom: number[]; // IDs de las figuras base
-  mergeInto: number; // ID de la figura fusionada (predefinida)
+  newId: number; // Nuevo ID generado para la fusión
+  newName: string; // Nuevo nombre asignado a las figuras fusionadas
+  newColor: string;
   activeFrom: string; // Hora de inicio ("HH:MM")
   activeTo: string; // Hora de fin ("HH:MM")
 }

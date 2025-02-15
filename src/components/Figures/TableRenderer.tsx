@@ -1,4 +1,7 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import { Table } from '@/types/types';
 
 interface TableRendererProps {
@@ -24,36 +27,64 @@ const TableRenderer: React.FC<TableRendererProps> = ({
   handleDeleteTable,
   handleEditTable,
 }) => {
+  const [hoveredTable, setHoveredTable] = useState<Table | null>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  const handleMouseEnter = (table: Table, e: React.MouseEvent<SVGElement>) => {
+    setHoveredTable(table);
+    setMousePos({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredTable(null);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<SVGElement>) => {
+    setMousePos({ x: e.clientX, y: e.clientY });
+  };
+
   return (
     <>
-      {tables.map((table) => {
-        const originalIndex = tables.findIndex((t) => t.id === table.id);
+      {tables.map((table, idx) => {
+        const key = table.id + '-' + idx;
+        const fillColor = table.mergedColor
+          ? table.mergedColor
+          : 'rgba(0, 0, 255, 0.3)';
+
+        const displayId = table.mergeId ?? table.id;
+
         return (
-          <g key={table.id}>
+          <g
+            key={key}
+            onMouseEnter={(e) => handleMouseEnter(table, e)}
+            onMouseLeave={handleMouseLeave}
+            onMouseMove={handleMouseMove}
+          >
             {table.shape === 'rect' ? (
               <rect
                 x={table.x * scale}
                 y={table.y * scale}
                 width={(table.width || 0) * scale}
                 height={(table.height || 0) * scale}
-                fill="rgba(0, 0, 255, 0.3)"
+                fill={fillColor}
                 stroke="blue"
                 strokeWidth="2"
                 cursor={isEditing ? 'move' : 'default'}
-                onMouseDown={(e) => handleTableMouseDown(originalIndex, e)}
+                onMouseDown={(e) => handleTableMouseDown(idx, e)}
               />
             ) : (
               <circle
                 cx={table.x * scale}
                 cy={table.y * scale}
                 r={(table.radius || 0) * scale}
-                fill="rgba(0, 0, 255, 0.3)"
+                fill={fillColor}
                 stroke="blue"
                 strokeWidth="2"
                 cursor={isEditing ? 'move' : 'default'}
-                onMouseDown={(e) => handleTableMouseDown(originalIndex, e)}
+                onMouseDown={(e) => handleTableMouseDown(idx, e)}
               />
             )}
+
             <text
               x={
                 table.shape === 'rect'
@@ -68,11 +99,12 @@ const TableRenderer: React.FC<TableRendererProps> = ({
               fill="black"
               fontSize={12}
               textAnchor="middle"
-              onDoubleClick={(e) => handleEditTable(originalIndex, e)}
+              onDoubleClick={(e) => handleEditTable(idx, e)}
               className="select-none"
             >
-              {table.id} - {table.name}
+              {displayId} - {table.name}
             </text>
+
             {isEditing && (
               <text
                 x={
@@ -88,7 +120,7 @@ const TableRenderer: React.FC<TableRendererProps> = ({
                 fill="red"
                 fontSize={14}
                 className="cursor-pointer select-none"
-                onClick={(e) => handleDeleteTable(originalIndex, e)}
+                onClick={(e) => handleDeleteTable(idx, e)}
               >
                 ✕
               </text>
@@ -96,6 +128,32 @@ const TableRenderer: React.FC<TableRendererProps> = ({
           </g>
         );
       })}
+
+      {/* Render del tooltip flotante usando un portal */}
+      {hoveredTable &&
+        ReactDOM.createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              left: mousePos.x + 10,
+              top: mousePos.y + 10,
+              backgroundColor: 'white',
+              border: '1px solid gray',
+              borderRadius: '4px',
+              padding: '6px 8px',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+              zIndex: 9999,
+              pointerEvents: 'none',
+            }}
+          >
+            <div>ID: {hoveredTable.id}</div>
+            <div>Name: {hoveredTable.name}</div>
+            {hoveredTable.mergeId && (
+              <div>Merge id: {hoveredTable.mergeId}</div>
+            )}
+          </div>,
+          document.body
+        )}
     </>
   );
 };

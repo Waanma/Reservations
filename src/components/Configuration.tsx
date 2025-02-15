@@ -1,45 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { MergeRule } from '@/types/types';
 
-// --- Tipos ---
-export interface MergeRule {
-  mergeFrom: number[]; // IDs de las figuras a fusionar
-  mergeInto: number; // ID de la figura resultante
-  activeFrom: string; // Hora de inicio ("HH:MM")
-  activeTo: string; // Hora de fin ("HH:MM")
-}
-
-interface PricingSlot {
-  startTime: string;
-  endTime: string;
-  price: number;
-}
-
-interface PricingDay {
-  day: string;
-  slots: PricingSlot[];
-}
-
-interface Config {
-  reservationTime: number;
-  timeBetweenReservations: number;
-  pricingSchedule: PricingDay[];
-}
-
-const daysOfWeek: string[] = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
-
-// --- Props del componente ---
-// Se reciben la función de cierre, la lista de figuras (para los selectores de Merge Rules)
-// y el estado de mergeRules con su setter (que provienen de FigureEditor)
 interface ConfigurationProps {
   onClose: () => void;
   tables: { id: number; name: string }[];
@@ -48,152 +11,98 @@ interface ConfigurationProps {
 }
 
 const Configuration: React.FC<ConfigurationProps> = ({
-  onClose,
   tables,
   mergeRules,
   setMergeRules,
 }) => {
-  // Estado para la pestaña interna del modal: "pricing" o "merge"
-  const [activeTab, setActiveTab] = useState<'pricing' | 'merge'>('pricing');
+  const [activeTab, setActiveTab] = useState<'pricing' | 'merge'>('merge');
 
-  // --- Lógica de Pricing Schedule ---
-  const [config, setConfig] = useState<Config>({
-    reservationTime: 30,
-    timeBetweenReservations: 15,
-    pricingSchedule: [
-      {
-        day: 'Monday',
-        slots: [{ startTime: '00:00', endTime: '00:00', price: 0 }],
-      },
-    ],
-  });
-
-  const handleReservationTimeChange = (value: number) => {
-    setConfig((prev) => ({ ...prev, reservationTime: value }));
-  };
-
-  const handleTimeBetweenReservationsChange = (value: number) => {
-    setConfig((prev) => ({ ...prev, timeBetweenReservations: value }));
-  };
-
-  const handleDayChange = (dayIndex: number, newDay: string) => {
-    const updatedSchedule = config.pricingSchedule.map((pricingDay, index) =>
-      index === dayIndex ? { ...pricingDay, day: newDay } : pricingDay
-    );
-    setConfig({ ...config, pricingSchedule: updatedSchedule });
-  };
-
-  const handleSlotChange = (
-    dayIndex: number,
-    slotIndex: number,
-    field: keyof PricingSlot,
-    value: string | number
-  ) => {
-    const updatedSchedule = config.pricingSchedule.map((pricingDay, dIndex) => {
-      if (dIndex === dayIndex) {
-        const updatedSlots = pricingDay.slots.map((slot, sIndex) =>
-          sIndex === slotIndex ? { ...slot, [field]: value } : slot
-        );
-        return { ...pricingDay, slots: updatedSlots };
-      }
-      return pricingDay;
-    });
-    setConfig({ ...config, pricingSchedule: updatedSchedule });
-  };
-
-  const addSlot = (dayIndex: number) => {
-    const newSlot: PricingSlot = {
-      startTime: '00:00',
-      endTime: '00:00',
-      price: 0,
-    };
-    const updatedSchedule = config.pricingSchedule.map((pricingDay, dIndex) => {
-      if (dIndex === dayIndex) {
-        return { ...pricingDay, slots: [...pricingDay.slots, newSlot] };
-      }
-      return pricingDay;
-    });
-    setConfig({ ...config, pricingSchedule: updatedSchedule });
-  };
-
-  const removeSlot = (dayIndex: number, slotIndex: number) => {
-    const updatedSchedule = config.pricingSchedule.map((pricingDay, dIndex) => {
-      if (dIndex === dayIndex) {
-        const updatedSlots = pricingDay.slots.filter(
-          (_, sIndex) => sIndex !== slotIndex
-        );
-        return { ...pricingDay, slots: updatedSlots };
-      }
-      return pricingDay;
-    });
-    setConfig({ ...config, pricingSchedule: updatedSchedule });
-  };
-
-  const addDay = () => {
-    const newDay: PricingDay = {
-      day: 'Monday',
-      slots: [{ startTime: '00:00', endTime: '00:00', price: 0 }],
-    };
-    setConfig({
-      ...config,
-      pricingSchedule: [...config.pricingSchedule, newDay],
-    });
-  };
-
-  const removeDay = (dayIndex: number) => {
-    const updatedSchedule = config.pricingSchedule.filter(
-      (_, index) => index !== dayIndex
-    );
-    setConfig({ ...config, pricingSchedule: updatedSchedule });
-  };
-
-  // --- Lógica de Merge Rules ---
-  // Para esta parte usamos el estado mergeRules y setMergeRules que llegan por props.
+  // Estado para la nueva regla
   const [newRule, setNewRule] = useState<MergeRule>({
     mergeFrom: [],
-    mergeInto: 0,
+    newId: 0,
+    newName: '',
+    newColor: '#ff0000',
     activeFrom: '15:00',
     activeTo: '18:00',
   });
 
+  // Estado para la regla en edición (cuando no es nula, se abre el modal)
+  const [editingRule, setEditingRule] = useState<MergeRule | null>(null);
+
+  // Manejar cambios en checkbox para la nueva regla
+  const handleCheckboxChange = (id: number) => {
+    setNewRule((prev) => {
+      const isSelected = prev.mergeFrom.includes(id);
+      return {
+        ...prev,
+        mergeFrom: isSelected
+          ? prev.mergeFrom.filter((item) => item !== id)
+          : [...prev.mergeFrom, id],
+      };
+    });
+  };
+
+  // Manejar cambios en checkbox para la regla en edición
+  const handleEditCheckboxChange = (id: number) => {
+    if (!editingRule) return;
+    const isSelected = editingRule.mergeFrom.includes(id);
+    setEditingRule({
+      ...editingRule,
+      mergeFrom: isSelected
+        ? editingRule.mergeFrom.filter((item) => item !== id)
+        : [...editingRule.mergeFrom, id],
+    });
+  };
+
   const handleAddRule = () => {
-    if (newRule.mergeFrom.length === 0 || newRule.mergeInto === 0) {
-      alert('Please select figures to merge and a resulting figure.');
+    if (newRule.mergeFrom.length < 2) {
+      alert('Please select at least two figures to merge.');
       return;
     }
-    setMergeRules([...mergeRules, newRule]);
+    const generatedId = Math.max(...tables.map((t) => t.id)) + 1;
+    const ruleToAdd: MergeRule = { ...newRule, newId: generatedId };
+    setMergeRules([...mergeRules, ruleToAdd]);
     setNewRule({
       mergeFrom: [],
-      mergeInto: 0,
+      newId: 0,
+      newName: '',
+      newColor: '#ff0000',
       activeFrom: '15:00',
       activeTo: '18:00',
     });
   };
 
+  const startEditing = (rule: MergeRule) => {
+    // Abrimos el modal con una copia de la regla
+    setEditingRule({ ...rule });
+  };
+
+  const cancelEditing = () => {
+    setEditingRule(null);
+  };
+
+  const saveEditing = () => {
+    if (editingRule) {
+      if (editingRule.mergeFrom.length < 2) {
+        alert('Please select at least two figures to merge.');
+        return;
+      }
+      setMergeRules(
+        mergeRules.map((r) => (r.newId === editingRule.newId ? editingRule : r))
+      );
+      cancelEditing();
+    }
+  };
+
   return (
     <div className="relative p-4 max-h-[80vh] overflow-y-auto">
-      {/* Botón de cierre en la esquina superior derecha */}
-      <button
-        onClick={onClose}
-        className="absolute top-0 right-0 p-2 text-gray-500 hover:text-gray-700"
-      >
-        X
-      </button>
       <h3 className="text-xl font-semibold text-gray-800 mb-4">
         Configuration
       </h3>
+
       {/* Tabs internas */}
       <div className="flex border-b mb-4">
-        <button
-          onClick={() => setActiveTab('pricing')}
-          className={`py-2 px-4 ${
-            activeTab === 'pricing'
-              ? 'border-b-2 border-blue-500 font-bold'
-              : ''
-          }`}
-        >
-          Pricing Schedule
-        </button>
         <button
           onClick={() => setActiveTab('merge')}
           className={`py-2 px-4 ${
@@ -203,153 +112,14 @@ const Configuration: React.FC<ConfigurationProps> = ({
           Merge Rules
         </button>
       </div>
-      {activeTab === 'pricing' ? (
-        <div>
-          <div className="mb-4 flex justify-end">
-            <button
-              onClick={addDay}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-            >
-              Add Day
-            </button>
-          </div>
-          {config.pricingSchedule.map((pricingDay, dayIndex) => (
-            <div key={dayIndex} className="mb-4 border p-4 rounded">
-              <div className="flex justify-between items-center mb-2">
-                <div className="w-1/2">
-                  <label className="block text-gray-700 font-medium mb-1">
-                    Day:
-                  </label>
-                  <select
-                    value={pricingDay.day}
-                    onChange={(e) => handleDayChange(dayIndex, e.target.value)}
-                    className="w-full p-2 border rounded"
-                  >
-                    {daysOfWeek.map((day) => (
-                      <option key={day} value={day}>
-                        {day}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <button
-                    onClick={() => removeDay(dayIndex)}
-                    className="bg-red-500 text-white px-3 py-1 rounded"
-                  >
-                    Delete Day
-                  </button>
-                </div>
-              </div>
-              {pricingDay.slots.map((slot, slotIndex) => (
-                <div
-                  key={slotIndex}
-                  className="grid grid-cols-4 gap-2 items-end mb-2"
-                >
-                  <div>
-                    <label className="block text-gray-700 font-medium mb-1">
-                      Start at:
-                    </label>
-                    <input
-                      type="time"
-                      value={slot.startTime}
-                      onChange={(e) =>
-                        handleSlotChange(
-                          dayIndex,
-                          slotIndex,
-                          'startTime',
-                          e.target.value
-                        )
-                      }
-                      className="w-full p-1 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-700 font-medium mb-1">
-                      End at:
-                    </label>
-                    <input
-                      type="time"
-                      value={slot.endTime}
-                      onChange={(e) =>
-                        handleSlotChange(
-                          dayIndex,
-                          slotIndex,
-                          'endTime',
-                          e.target.value
-                        )
-                      }
-                      className="w-full p-1 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-700 font-medium mb-1">
-                      Price:
-                    </label>
-                    <input
-                      type="number"
-                      value={slot.price}
-                      onChange={(e) =>
-                        handleSlotChange(
-                          dayIndex,
-                          slotIndex,
-                          'price',
-                          Number(e.target.value)
-                        )
-                      }
-                      className="w-full p-1 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <button
-                      onClick={() => removeSlot(dayIndex, slotIndex)}
-                      className="bg-red-500 text-white px-2 py-1 rounded"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-              <button
-                onClick={() => addSlot(dayIndex)}
-                className="bg-blue-500 text-white px-4 py-2 rounded"
-              >
-                Add time slot
-              </button>
-            </div>
-          ))}
-          <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-1">
-              Reservation time (minutes):
-            </label>
-            <input
-              type="number"
-              value={config.reservationTime}
-              onChange={(e) =>
-                handleReservationTimeChange(Number(e.target.value))
-              }
-              className="w-full p-1 border rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-gray-700 font-medium mb-1">
-              Time between reservations (minutes):
-            </label>
-            <input
-              type="number"
-              value={config.timeBetweenReservations}
-              onChange={(e) =>
-                handleTimeBetweenReservationsChange(Number(e.target.value))
-              }
-              className="w-full p-1 border rounded"
-            />
-          </div>
-        </div>
-      ) : (
+
+      {activeTab === 'merge' && (
         <div>
           <h3 className="text-xl font-semibold mb-4">
             Merge Rules Configuration
           </h3>
+
+          {/* Mostrar reglas existentes */}
           {mergeRules.map((rule, index) => (
             <div key={index} className="mb-2 p-2 border rounded">
               <div>
@@ -357,60 +127,80 @@ const Configuration: React.FC<ConfigurationProps> = ({
                 {rule.mergeFrom.join(', ')}
               </div>
               <div>
-                <span className="font-medium">Merge into:</span>{' '}
-                {rule.mergeInto}
+                <span className="font-medium">New ID:</span> {rule.newId}
+              </div>
+              <div>
+                <span className="font-medium">New Name:</span> {rule.newName}
+              </div>
+              <div>
+                <span className="font-medium">New Color:</span>{' '}
+                <span style={{ color: rule.newColor }}>{rule.newColor}</span>
               </div>
               <div>
                 <span className="font-medium">Active from:</span>{' '}
                 {rule.activeFrom} <span className="font-medium">to:</span>{' '}
                 {rule.activeTo}
               </div>
+              <button
+                onClick={() => startEditing(rule)}
+                className="mt-2 bg-yellow-500 text-white px-4 py-2 rounded"
+              >
+                Edit
+              </button>
             </div>
           ))}
+
+          {/* Formulario para crear una nueva regla de merge */}
           <div className="mt-4 p-2 border rounded">
             <h4 className="font-semibold mb-2">New Merge Rule</h4>
+
             <div className="mb-2">
               <label className="block text-gray-700 font-medium mb-1">
-                Figures to merge:
+                Select Figures to Merge:
               </label>
-              <select
-                multiple
-                value={newRule.mergeFrom.map(String)}
-                onChange={(e) => {
-                  const selected = Array.from(
-                    e.target.selectedOptions,
-                    (option) => Number(option.value)
-                  );
-                  setNewRule({ ...newRule, mergeFrom: selected });
-                }}
-                className="w-full p-2 border rounded"
-              >
+              <div className="grid grid-cols-2 gap-2">
                 {tables.map((table) => (
-                  <option key={table.id} value={table.id}>
+                  <label key={table.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={newRule.mergeFrom.includes(table.id)}
+                      onChange={() => handleCheckboxChange(table.id)}
+                      className="cursor-pointer"
+                    />
                     {table.id} - {table.name}
-                  </option>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
+
             <div className="mb-2">
               <label className="block text-gray-700 font-medium mb-1">
-                Resulting figure:
+                New Name:
               </label>
-              <select
-                value={newRule.mergeInto}
+              <input
+                type="text"
+                value={newRule.newName}
                 onChange={(e) =>
-                  setNewRule({ ...newRule, mergeInto: Number(e.target.value) })
+                  setNewRule({ ...newRule, newName: e.target.value })
                 }
                 className="w-full p-2 border rounded"
-              >
-                <option value={0}>Select a figure</option>
-                {tables.map((table) => (
-                  <option key={table.id} value={table.id}>
-                    {table.id} - {table.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
+
+            <div className="mb-2">
+              <label className="block text-gray-700 font-medium mb-1">
+                New Color:
+              </label>
+              <input
+                type="color"
+                value={newRule.newColor}
+                onChange={(e) =>
+                  setNewRule({ ...newRule, newColor: e.target.value })
+                }
+                className="w-full p-2 border rounded"
+              />
+            </div>
+
             <div className="mb-2 flex gap-2">
               <div className="w-1/2">
                 <label className="block text-gray-700 font-medium mb-1">
@@ -439,12 +229,106 @@ const Configuration: React.FC<ConfigurationProps> = ({
                 />
               </div>
             </div>
+
             <button
               onClick={handleAddRule}
               className="bg-green-500 text-white px-4 py-2 rounded"
             >
               Add Merge Rule
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para editar regla */}
+      {editingRule && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded shadow-md w-11/12 md:w-1/2">
+            <h3 className="text-xl font-semibold mb-4">Edit Merge Rule</h3>
+
+            <div className="mb-4">
+              <span className="font-medium">Merge from:</span>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {tables.map((table) => (
+                  <label key={table.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editingRule.mergeFrom.includes(table.id)}
+                      onChange={() => handleEditCheckboxChange(table.id)}
+                      className="cursor-pointer"
+                    />
+                    {table.id} - {table.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="font-medium block mb-1">New Name:</label>
+              <input
+                type="text"
+                value={editingRule.newName}
+                onChange={(e) =>
+                  setEditingRule({ ...editingRule, newName: e.target.value })
+                }
+                className="w-full p-2 border rounded"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="font-medium block mb-1">New Color:</label>
+              <input
+                type="color"
+                value={editingRule.newColor}
+                onChange={(e) =>
+                  setEditingRule({ ...editingRule, newColor: e.target.value })
+                }
+                className="w-full p-2 border rounded"
+              />
+            </div>
+
+            <div className="mb-4 flex gap-2">
+              <div className="w-1/2">
+                <label className="font-medium block mb-1">Active from:</label>
+                <input
+                  type="time"
+                  value={editingRule.activeFrom}
+                  onChange={(e) =>
+                    setEditingRule({
+                      ...editingRule,
+                      activeFrom: e.target.value,
+                    })
+                  }
+                  className="w-full p-2 border rounded"
+                />
+              </div>
+              <div className="w-1/2">
+                <label className="font-medium block mb-1">Active to:</label>
+                <input
+                  type="time"
+                  value={editingRule.activeTo}
+                  onChange={(e) =>
+                    setEditingRule({ ...editingRule, activeTo: e.target.value })
+                  }
+                  className="w-full p-2 border rounded"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={saveEditing}
+                className="bg-blue-500 text-white px-4 py-2 rounded"
+              >
+                Save
+              </button>
+              <button
+                onClick={cancelEditing}
+                className="bg-gray-500 text-white px-4 py-2 rounded"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

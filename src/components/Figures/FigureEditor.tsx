@@ -52,7 +52,7 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
   );
   const [currentTime, setCurrentTime] = useState('14:00');
 
-  // Usamos un estado local para el tamaño del SVG
+  // Estado local para el tamaño del SVG
   const [localSvgSize, setLocalSvgSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const handleResize = () => {
@@ -66,7 +66,7 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Listener para el evento wheel usando useLayoutEffect
+  // Listener para el evento wheel
   useLayoutEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -228,13 +228,14 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
     }
   };
 
+  // Función para editar la figura (se abre el modal de configuración)
   const handleEditTable = (
     index: number,
     e: React.MouseEvent<SVGTextElement, MouseEvent>
   ) => {
     e.stopPropagation();
     const table = tables[index];
-    if (!table || !isEditing) return;
+    if (!table) return;
     setTableToEdit({ ...table });
     setActiveTab('figure');
   };
@@ -268,21 +269,22 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
     setTableToEdit(null);
   };
 
-  // Si no se utiliza la lógica de fusión, la comentamos para eliminar la advertencia
-  // const activeMergeRules = mergeRules.filter((rule) =>
-  //   isTimeInRange(currentTime, rule.activeFrom, rule.activeTo)
-  // );
-  let visibleTables = tables;
-  mergeRules.forEach((rule) => {
-    if (isTimeInRange(currentTime, rule.activeFrom, rule.activeTo)) {
-      visibleTables = visibleTables.filter(
-        (table) => !rule.mergeFrom.includes(table.id)
-      );
-    } else {
-      visibleTables = visibleTables.filter(
-        (table) => table.id !== rule.mergeInto
-      );
+  // Lógica de fusión
+  const mergedTables = tables.map((table) => {
+    for (const rule of mergeRules) {
+      if (
+        isTimeInRange(currentTime, rule.activeFrom, rule.activeTo) &&
+        rule.mergeFrom.includes(table.id)
+      ) {
+        return {
+          ...table,
+          mergeId: rule.newId,
+          name: rule.newName,
+          mergedColor: rule.newColor,
+        };
+      }
     }
+    return table;
   });
 
   // Panel de creación de figuras
@@ -319,7 +321,6 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
     </div>
   );
 
-  // Calcula valores para la grilla
   const salonXs = salonPolygon ? salonPolygon.map(([x]) => x) : [];
   const salonYs = salonPolygon ? salonPolygon.map(([, y]) => y) : [];
 
@@ -375,7 +376,9 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
               y={draftTable.y * scale}
               width={(draftTable.width || 0) * scale}
               height={(draftTable.height || 0) * scale}
-              fill="rgba(0, 0, 255, 0.3)"
+              fill={
+                draftTable.color ? draftTable.color : 'rgba(0, 0, 255, 0.3)'
+              }
               stroke="blue"
               strokeDasharray="4"
               strokeWidth="2"
@@ -385,14 +388,16 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
               cx={draftTable.x * scale}
               cy={draftTable.y * scale}
               r={(draftTable.radius || 0) * scale}
-              fill="rgba(0, 0, 255, 0.3)"
+              fill={
+                draftTable.color ? draftTable.color : 'rgba(0, 0, 255, 0.3)'
+              }
               stroke="blue"
               strokeDasharray="4"
               strokeWidth="2"
             />
           ) : null}
           <TableRenderer
-            tables={visibleTables}
+            tables={mergedTables}
             scale={scale}
             isEditing={isEditing}
             handleTableMouseDown={handleTableMouseDown}
