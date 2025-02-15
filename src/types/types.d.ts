@@ -33,3 +33,24 @@ export type PricingSchedule = {
   endTime: string;
   price: number;
 };
+
+// Tipo para las reglas de fusión
+interface MergeRule {
+  mergeFrom: number[]; // IDs de las figuras base
+  mergeInto: number; // ID de la figura fusionada (predefinida)
+  activeFrom: string; // Hora de inicio ("HH:MM")
+  activeTo: string; // Hora de fin ("HH:MM")
+}
+
+export type FigureEditorProps = {
+  tables: Table[];
+  setTables: React.Dispatch<React.SetStateAction<Table[]>>;
+  scale: number;
+  zoom: number;
+  svgSize: { width: number; height: number };
+  position: { x: number; y: number };
+  salonPolygon: number[][] | null;
+  onSwitchToPerimeter: () => void;
+  handlePanMouseDown: (e: React.MouseEvent<Element, MouseEvent>) => void;
+  showGrid?: boolean;
+};

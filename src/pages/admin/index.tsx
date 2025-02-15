@@ -1,4 +1,4 @@
-import PerimeterEditor from '../../components/PerimeterEditor';
+import PerimeterEditor from '../../components/Perimeter/PerimeterEditor';
 
 const Admin = () => {
   return (

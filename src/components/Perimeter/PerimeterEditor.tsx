@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import TableEditor from '@/components/FigureEditor';
+import FigureEditor from '@/components/Figures/FigureEditor';
 import mockData from '@/public/data/mockData.json';
 import { Table } from '@/types/types';
+import { useZoomContext } from '@/contexts/ZoomContext';
+import Header from './PerimeterHeader';
+import PolygonEditor from './PolygonEditor';
+import Grid from '../Grid';
 
 type Mode = 'Perimeter' | 'Figures';
 
@@ -30,7 +34,7 @@ const PerimeterEditor: React.FC = () => {
     useState<number[][]>(initialCoordinates);
   const [distances, setDistances] = useState<{ [key: string]: number }>({});
   const scaleRef = useRef(50); // 1 metro = 50 píxeles
-  const [zoom, setZoom] = useState(1);
+  const { zoom, setZoom } = useZoomContext();
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [movingVertex, setMovingVertex] = useState<number | null>(null);
 
@@ -48,6 +52,8 @@ const PerimeterEditor: React.FC = () => {
     width: 0,
     height: 0,
   });
+
+  const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -278,39 +284,9 @@ const PerimeterEditor: React.FC = () => {
     setEditMode('Figures');
   };
 
-  // Agregamos referencia y listener para el zoom con la rueda
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const zoomFactor = 0.1;
-      setZoom((prevZoom) =>
-        Math.max(
-          0.5,
-          Math.min(
-            e.deltaY < 0 ? prevZoom + zoomFactor : prevZoom - zoomFactor,
-            3
-          )
-        )
-      );
-    };
-
-    const svgEl = svgRef.current;
-    if (svgEl) {
-      svgEl.addEventListener('wheel', handleWheel, { passive: false });
-    }
-    return () => {
-      if (svgEl) {
-        svgEl.removeEventListener('wheel', handleWheel);
-      }
-    };
-  }, []);
-
   if (editMode === 'Figures') {
     return (
-      <TableEditor
+      <FigureEditor
         tables={tables}
         setTables={setTables}
         scale={scaleRef.current}
@@ -375,38 +351,7 @@ const PerimeterEditor: React.FC = () => {
         fontFamily: 'sans-serif',
       }}
     >
-      <header
-        style={{
-          padding: '0.5rem 1rem',
-          backgroundColor: '#f0f0f0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <h2 style={{ margin: 0 }}>Perimeter Editor</h2>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <label htmlFor="zoomRange" style={{ marginRight: '0.5rem' }}>
-            Zoom:
-          </label>
-          <input
-            id="zoomRange"
-            type="range"
-            min="0.5"
-            max="3"
-            step="0.1"
-            value={zoom}
-            onChange={(e) => setZoom(parseFloat(e.target.value))}
-            style={{ marginRight: '1rem' }}
-          />
-          <div
-            className="bg-green-500 items-center justify-center p-2 rounded-lg cursor-pointer"
-            onClick={handleSaveSalon}
-          >
-            <button>Save</button>
-          </div>
-        </div>
-      </header>
+      <Header zoom={zoom} setZoom={setZoom} onSave={handleSaveSalon} />
       <main style={{ flexGrow: 1, position: 'relative', overflow: 'hidden' }}>
         <div
           className="svg-container"
@@ -419,82 +364,45 @@ const PerimeterEditor: React.FC = () => {
             height="100%"
             onDoubleClick={handleAddVertex}
             style={{ border: '1px solid #ddd', display: 'block' }}
+            onWheel={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log(
+                'Wheel event fired (onWheel prop), deltaY:',
+                e.deltaY
+              );
+              const zoomFactor = 0.1;
+              setZoom((prevZoom) =>
+                Math.max(
+                  0.5,
+                  Math.min(
+                    e.deltaY < 0
+                      ? prevZoom + zoomFactor
+                      : prevZoom - zoomFactor,
+                    3
+                  )
+                )
+              );
+            }}
           >
             <g
               transform={`translate(${position.x}, ${position.y}) scale(${zoom})`}
             >
-              <g>
-                {gridVerticalLines}
-                {gridHorizontalLines}
-              </g>
-              <polygon
-                points={salonCoordinates
-                  .map(
-                    ([x, y]) =>
-                      `${x * scaleRef.current},${y * scaleRef.current}`
-                  )
-                  .join(' ')}
-                fill="lightgray"
-                stroke="black"
-                strokeWidth="2"
+              <Grid
+                scale={scaleRef.current}
+                width={svgSize.width}
+                height={svgSize.height}
+                salonXs={salonXs}
+                salonYs={salonYs}
               />
-              {salonCoordinates.map(([x, y], index) => (
-                <g key={index}>
-                  <circle
-                    cx={x * scaleRef.current}
-                    cy={y * scaleRef.current}
-                    r="8"
-                    fill="red"
-                    stroke="black"
-                    strokeWidth="2"
-                    cursor="pointer"
-                    onMouseDown={(e) => handleVertexMouseDown(index, e)}
-                    onContextMenu={(e) => handleDeleteVertex(index, e)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <text
-                    x={x * scaleRef.current + 10}
-                    y={y * scaleRef.current + 10}
-                    fill="black"
-                  >
-                    {index + 1}
-                  </text>
-                </g>
-              ))}
-              {Object.keys(distances).map((key) => {
-                const [index1, index2] = key.split('-').map(Number);
-                if (
-                  index1 >= salonCoordinates.length ||
-                  index2 >= salonCoordinates.length
-                )
-                  return null;
-                const [x1, y1] = salonCoordinates[index1];
-                const [x2, y2] = salonCoordinates[index2];
-                const midX = (x1 + x2) / 2;
-                const midY = (y1 + y2) / 2;
-                return (
-                  <g key={key}>
-                    <line
-                      x1={x1 * scaleRef.current}
-                      y1={y1 * scaleRef.current}
-                      x2={x2 * scaleRef.current}
-                      y2={y2 * scaleRef.current}
-                      stroke="black"
-                      strokeWidth="2"
-                    />
-                    <text
-                      x={midX * scaleRef.current}
-                      y={midY * scaleRef.current}
-                      fill="black"
-                      fontSize="12"
-                      textAnchor="middle"
-                      onClick={(e) => handleEditDistance(index1, index2, e)}
-                    >
-                      {distances[key].toFixed(2)} m
-                    </text>
-                  </g>
-                );
-              })}
+              <PolygonEditor
+                salonCoordinates={salonCoordinates}
+                scale={scaleRef.current}
+                distances={distances}
+                onVertexMouseDown={handleVertexMouseDown}
+                onVertexDelete={handleDeleteVertex}
+                onEditDistance={handleEditDistance}
+              />
             </g>
           </svg>
         </div>

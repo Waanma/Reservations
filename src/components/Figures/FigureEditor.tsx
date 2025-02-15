@@ -1,32 +1,17 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Table } from '@/types/types';
-import Configuration from './Configuration';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { Table, MergeRule, FigureEditorProps } from '@/types/types';
+import Configuration from '../Configuration';
+import { useZoomContext } from '@/contexts/ZoomContext';
+import FiguresHeader from './FiguresHeader';
+import Grid from '../Grid';
+import TableRenderer from './TableRenderer';
 
 function getNewTableId(tables: Table[]): number {
   return tables.length === 0 ? 1 : Math.max(...tables.map((t) => t.id)) + 1;
 }
 
-// Regla de fusión: define qué figuras se unen para que se muestre otra
-interface MergeRule {
-  mergeFrom: number[]; // IDs de las figuras base
-  mergeInto: number; // ID de la figura fusionada (ya creada)
-  activeFrom: string; // hora de inicio (formato "HH:MM")
-  activeTo: string; // hora de fin (formato "HH:MM")
-}
-
-// Ejemplo de regla: las figuras 1 y 2 se fusionan en la figura 3 de 15:00 a 18:00
-const mergeRules: MergeRule[] = [
-  {
-    mergeFrom: [1, 2],
-    mergeInto: 3,
-    activeFrom: '15:00',
-    activeTo: '18:00',
-  },
-];
-
-// Función que comprueba si una hora (en "HH:MM") se encuentra dentro de un rango
 const isTimeInRange = (
   current: string,
   start: string,
@@ -41,62 +26,80 @@ const isTimeInRange = (
   return currentTotal >= startTotal && currentTotal <= endTotal;
 };
 
-interface TableEditorProps {
-  tables: Table[];
-  setTables: React.Dispatch<React.SetStateAction<Table[]>>;
-  scale: number;
-  zoom: number;
-  position: { x: number; y: number };
-  svgSize: { width: number; height: number };
-  salonPolygon: number[][] | null;
-  onSwitchToPerimeter: () => void;
-  handlePanMouseDown: (e: React.MouseEvent<Element, MouseEvent>) => void;
-  showGrid?: boolean;
-}
-
-const FigureEditor: React.FC<TableEditorProps> = ({
+const FigureEditor: React.FC<FigureEditorProps> = ({
   tables,
   setTables,
   scale,
-  zoom,
   position,
-  svgSize,
   salonPolygon,
   onSwitchToPerimeter,
   handlePanMouseDown,
   showGrid = true,
 }) => {
+  // Estados locales para edición y creación
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [addingTable, setAddingTable] = useState<boolean>(false);
   const [selectedShape, setSelectedShape] = useState<'rect' | 'circle'>('rect');
+  const { zoom, setZoom } = useZoomContext();
   const [draftTable, setDraftTable] = useState<Table | null>(null);
-  const [currentZoom, setCurrentZoom] = useState(zoom);
+  const [mergeRules, setMergeRules] = useState<MergeRule[]>([]);
   const drawingStart = useRef<{ x: number; y: number } | null>(null);
   const draftRef = useRef<Table | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-
   const [tableToEdit, setTableToEdit] = useState<Table | null>(null);
-  // Estado para las pestañas del modal: 'figura' o 'configuracion'
-  const [activeTab, setActiveTab] = useState<'figura' | 'configuracion'>(
-    'figura'
+  const [activeTab, setActiveTab] = useState<'figure' | 'configuration'>(
+    'figure'
   );
-
-  // Estado para simular la hora actual (en "HH:MM")
   const [currentTime, setCurrentTime] = useState('14:00');
 
+  // Usamos un estado local para el tamaño del SVG
+  const [localSvgSize, setLocalSvgSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
-    console.log('--- Render TableEditor ---');
-  }, [isEditing, addingTable, draftTable, tables]);
+    const handleResize = () => {
+      setLocalSvgSize({
+        width: window.innerWidth * 0.9,
+        height: window.innerHeight * 0.8,
+      });
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
+  // Listener para el evento wheel usando useLayoutEffect
+  useLayoutEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const zoomFactor = 0.1;
+      setZoom((prevZoom) =>
+        Math.max(
+          0.1,
+          Math.min(
+            e.deltaY < 0 ? prevZoom + zoomFactor : prevZoom - zoomFactor,
+            3
+          )
+        )
+      );
+    };
+    const svgEl = svgRef.current;
+    if (svgEl) {
+      svgEl.addEventListener('wheel', handleWheel, { passive: false });
+    }
+    return () => {
+      if (svgEl) {
+        svgEl.removeEventListener('wheel', handleWheel);
+      }
+    };
+  }, [setZoom]);
+
+  // Función para alternar el modo de edición
   const toggleEditMode = () => {
     setIsEditing((prev) => !prev);
     setAddingTable(false);
   };
 
-  const handleZoomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCurrentZoom(parseFloat(e.target.value));
-  };
-
+  // Función para iniciar la creación de una figura
   const startAddTable = (shape: 'rect' | 'circle') => {
     if (!isEditing) return;
     setSelectedShape(shape);
@@ -115,24 +118,21 @@ const FigureEditor: React.FC<TableEditorProps> = ({
     const startY = e.clientY;
     const table = tables[index];
     if (!table) return;
-
     const onMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
-      const newX = table.x + deltaX / (scale * currentZoom);
-      const newY = table.y + deltaY / (scale * currentZoom);
+      const newX = table.x + deltaX / (scale * zoom);
+      const newY = table.y + deltaY / (scale * zoom);
       setTables((prev) => {
         const updated = [...prev];
         updated[index] = { ...updated[index], x: newX, y: newY };
         return updated;
       });
     };
-
     const onMouseUp = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   };
@@ -143,12 +143,9 @@ const FigureEditor: React.FC<TableEditorProps> = ({
     if (addingTable) {
       if (draftTable) return;
       const svgRect = e.currentTarget.getBoundingClientRect();
-      const startX =
-        (e.clientX - svgRect.left - position.x) / (scale * currentZoom);
-      const startY =
-        (e.clientY - svgRect.top - position.y) / (scale * currentZoom);
+      const startX = (e.clientX - svgRect.left - position.x) / (scale * zoom);
+      const startY = (e.clientY - svgRect.top - position.y) / (scale * zoom);
       drawingStart.current = { x: startX, y: startY };
-
       const newId = getNewTableId(tables);
       const newDraft: Table =
         selectedShape === 'rect'
@@ -171,14 +168,11 @@ const FigureEditor: React.FC<TableEditorProps> = ({
             };
       setDraftTable(newDraft);
       draftRef.current = newDraft;
-
       const handleGlobalMouseMove = (moveEvent: MouseEvent) => {
         const x =
-          (moveEvent.clientX - svgRect.left - position.x) /
-          (scale * currentZoom);
+          (moveEvent.clientX - svgRect.left - position.x) / (scale * zoom);
         const y =
-          (moveEvent.clientY - svgRect.top - position.y) /
-          (scale * currentZoom);
+          (moveEvent.clientY - svgRect.top - position.y) / (scale * zoom);
         setDraftTable((prev) => {
           if (!prev || !drawingStart.current) return prev;
           const updated = { ...prev };
@@ -195,7 +189,6 @@ const FigureEditor: React.FC<TableEditorProps> = ({
           return updated;
         });
       };
-
       const handleGlobalMouseUp = () => {
         const currentDraft = draftRef.current;
         if (!currentDraft || !drawingStart.current) {
@@ -228,7 +221,6 @@ const FigureEditor: React.FC<TableEditorProps> = ({
         drawingStart.current = null;
         window.removeEventListener('mousemove', handleGlobalMouseMove);
       };
-
       window.addEventListener('mousemove', handleGlobalMouseMove);
       window.addEventListener('mouseup', handleGlobalMouseUp, { once: true });
     } else {
@@ -244,7 +236,7 @@ const FigureEditor: React.FC<TableEditorProps> = ({
     const table = tables[index];
     if (!table || !isEditing) return;
     setTableToEdit({ ...table });
-    setActiveTab('figura');
+    setActiveTab('figure');
   };
 
   const handleDeleteTable = (index: number, e: React.MouseEvent) => {
@@ -276,62 +268,63 @@ const FigureEditor: React.FC<TableEditorProps> = ({
     setTableToEdit(null);
   };
 
-  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    const zoomFactor = 0.1;
-    // Si deltaY es negativo, se hace zoom in; si es positivo, zoom out.
-    const newZoom =
-      e.deltaY < 0 ? currentZoom + zoomFactor : currentZoom - zoomFactor;
-    // Aseguramos que el zoom se mantenga entre 0.1 y 3
-    setCurrentZoom(Math.max(0.1, Math.min(newZoom, 3)));
-  };
-
-  // --- Lógica de fusión de figuras --- //
-
-  // Determinar qué reglas están activas según la hora actual simulada
-  const activeMergeRules = mergeRules.filter((rule) =>
-    isTimeInRange(currentTime, rule.activeFrom, rule.activeTo)
-  );
-
-  // A partir de las reglas activas se filtran las figuras a mostrar
+  // Si no se utiliza la lógica de fusión, la comentamos para eliminar la advertencia
+  // const activeMergeRules = mergeRules.filter((rule) =>
+  //   isTimeInRange(currentTime, rule.activeFrom, rule.activeTo)
+  // );
   let visibleTables = tables;
-  activeMergeRules.forEach((rule) => {
-    visibleTables = visibleTables.filter(
-      (table) => !rule.mergeFrom.includes(table.id)
-    );
+  mergeRules.forEach((rule) => {
+    if (isTimeInRange(currentTime, rule.activeFrom, rule.activeTo)) {
+      visibleTables = visibleTables.filter(
+        (table) => !rule.mergeFrom.includes(table.id)
+      );
+    } else {
+      visibleTables = visibleTables.filter(
+        (table) => table.id !== rule.mergeInto
+      );
+    }
   });
 
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const zoomFactor = 0.1;
-      setCurrentZoom((prevZoom) =>
-        Math.max(
-          0.1,
-          Math.min(
-            e.deltaY < 0 ? prevZoom + zoomFactor : prevZoom - zoomFactor,
-            3
-          )
-        )
-      );
-    };
+  // Panel de creación de figuras
+  const CreateFigurePanel = () => (
+    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+      <button
+        onClick={() => startAddTable('rect')}
+        style={{
+          padding: '0.5rem 1rem',
+          backgroundColor:
+            addingTable && selectedShape === 'rect' ? 'green' : '#ccc',
+          color: addingTable && selectedShape === 'rect' ? 'white' : '#333',
+          borderRadius: '4px',
+          border: 'none',
+          cursor: 'pointer',
+        }}
+      >
+        Create Rectangle
+      </button>
+      <button
+        onClick={() => startAddTable('circle')}
+        style={{
+          padding: '0.5rem 1rem',
+          backgroundColor:
+            addingTable && selectedShape === 'circle' ? 'green' : '#ccc',
+          color: addingTable && selectedShape === 'circle' ? 'white' : '#333',
+          borderRadius: '4px',
+          border: 'none',
+          cursor: 'pointer',
+        }}
+      >
+        Create Circle
+      </button>
+    </div>
+  );
 
-    const svgEl = svgRef.current;
-    if (svgEl) {
-      // Registramos el listener como no pasivo
-      svgEl.addEventListener('wheel', handleWheel, { passive: false });
-    }
-    return () => {
-      if (svgEl) {
-        svgEl.removeEventListener('wheel', handleWheel);
-      }
-    };
-  }, []);
+  // Calcula valores para la grilla
+  const salonXs = salonPolygon ? salonPolygon.map(([x]) => x) : [];
+  const salonYs = salonPolygon ? salonPolygon.map(([, y]) => y) : [];
 
   return (
     <div className="space-y-6">
-      {/* Simulador de hora actual */}
       <div className="flex items-center gap-2">
         <label className="font-medium">Current Time:</label>
         <input
@@ -341,72 +334,31 @@ const FigureEditor: React.FC<TableEditorProps> = ({
           className="p-1 border rounded"
         />
       </div>
-
-      <div className="flex gap-4">
-        <button
-          onClick={toggleEditMode}
-          className="py-2 px-4 rounded bg-blue-500 text-white hover:bg-blue-600"
-        >
-          {isEditing ? 'Exit editing mode' : 'Edit Figures'}
-        </button>
-        <button
-          onClick={onSwitchToPerimeter}
-          disabled={isEditing}
-          className={`py-2 px-4 rounded ${
-            isEditing
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
-              : 'bg-blue-500 text-white cursor-pointer'
-          }`}
-        >
-          Edit Perimeter
-        </button>
-        {isEditing && (
-          <div className="flex gap-4 items-center">
-            <button
-              onClick={() => startAddTable('rect')}
-              className={`py-2 px-4 rounded ${
-                addingTable && selectedShape === 'rect'
-                  ? 'bg-green-500 text-white'
-                  : 'bg-gray-300 text-gray-700'
-              }`}
-            >
-              Create Rectangle
-            </button>
-            <button
-              onClick={() => startAddTable('circle')}
-              className={`py-2 px-4 rounded ${
-                addingTable && selectedShape === 'circle'
-                  ? 'bg-green-500 text-white'
-                  : 'bg-gray-300 text-gray-700'
-              }`}
-            >
-              Create Circle
-            </button>
-          </div>
-        )}
-      </div>
-      <input
-        type="range"
-        min="0.1"
-        max="3"
-        step="0.1"
-        value={currentZoom}
-        onChange={handleZoomChange}
-        className="mt-4"
+      <FiguresHeader
+        zoom={zoom}
+        setZoom={setZoom}
+        toggleEditMode={toggleEditMode}
+        onSwitchToPerimeter={onSwitchToPerimeter}
       />
+      {isEditing && <CreateFigurePanel />}
       <svg
         ref={svgRef}
         id="svg-canvas"
-        width={svgSize.width}
-        height={svgSize.height}
+        width={localSvgSize.width}
+        height={localSvgSize.height}
         onMouseDown={handleSVGMouseDown}
-        onWheel={handleWheel}
         className="border border-gray-300 cursor-crosshair"
       >
-        <g
-          transform={`translate(${position.x}, ${position.y}) scale(${currentZoom})`}
-        >
-          {showGrid && <g>{/* Grid lines here */}</g>}
+        <g transform={`translate(${position.x}, ${position.y}) scale(${zoom})`}>
+          {showGrid && (
+            <Grid
+              scale={scale}
+              width={localSvgSize.width}
+              height={localSvgSize.height}
+              salonXs={salonXs}
+              salonYs={salonYs}
+            />
+          )}
           {salonPolygon && (
             <polygon
               points={salonPolygon
@@ -439,114 +391,51 @@ const FigureEditor: React.FC<TableEditorProps> = ({
               strokeWidth="2"
             />
           ) : null}
-          {visibleTables.map((table, index) => (
-            <g key={table.id}>
-              {table.shape === 'rect' ? (
-                <rect
-                  x={table.x * scale}
-                  y={table.y * scale}
-                  width={(table.width || 0) * scale}
-                  height={(table.height || 0) * scale}
-                  fill="rgba(0, 0, 255, 0.3)"
-                  stroke="blue"
-                  strokeWidth="2"
-                  cursor={isEditing ? 'move' : 'default'}
-                  onMouseDown={(e) => handleTableMouseDown(index, e)}
-                />
-              ) : (
-                <circle
-                  cx={table.x * scale}
-                  cy={table.y * scale}
-                  r={(table.radius || 0) * scale}
-                  fill="rgba(0, 0, 255, 0.3)"
-                  stroke="blue"
-                  strokeWidth="2"
-                  cursor={isEditing ? 'move' : 'default'}
-                  onMouseDown={(e) => handleTableMouseDown(index, e)}
-                />
-              )}
-              <text
-                x={
-                  table.shape === 'rect'
-                    ? (table.x + (table.width || 0) / 2) * scale
-                    : table.x * scale
-                }
-                y={
-                  table.shape === 'rect'
-                    ? (table.y + (table.height || 0) / 2) * scale
-                    : table.y * scale
-                }
-                fill="black"
-                fontSize={12}
-                textAnchor="middle"
-                onDoubleClick={(e) => handleEditTable(index, e)}
-                className="select-none"
-              >
-                {table.id} - {table.name}
-              </text>
-              {isEditing && (
-                <text
-                  x={
-                    table.shape === 'rect'
-                      ? (table.x + (table.width || 0)) * scale - 10
-                      : table.x * scale + (table.radius || 0) * scale - 10
-                  }
-                  y={
-                    table.shape === 'rect'
-                      ? table.y * scale + 15
-                      : table.y * scale + (table.radius || 0) * scale + 5
-                  }
-                  fill="red"
-                  fontSize={14}
-                  className="cursor-pointer select-none"
-                  onClick={(e) => handleDeleteTable(index, e)}
-                >
-                  ✕
-                </text>
-              )}
-            </g>
-          ))}
+          <TableRenderer
+            tables={visibleTables}
+            scale={scale}
+            isEditing={isEditing}
+            handleTableMouseDown={handleTableMouseDown}
+            handleDeleteTable={handleDeleteTable}
+            handleEditTable={handleEditTable}
+          />
         </g>
       </svg>
-
-      {/* Modal para editar figura y configuración */}
       {tableToEdit && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg w-96 relative">
-            {/* Botón de cierre global del modal */}
+          <div className="bg-white p-6 rounded-lg w-3/6 relative">
             <button
               onClick={handleModalCancel}
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
             >
               X
             </button>
-            {/* Encabezado con pestañas */}
             <div className="flex justify-center border-b mb-4">
               <button
-                onClick={() => setActiveTab('figura')}
+                onClick={() => setActiveTab('figure')}
                 className={`py-2 px-4 ${
-                  activeTab === 'figura'
+                  activeTab === 'figure'
                     ? 'border-b-2 border-blue-500 font-bold'
                     : ''
                 }`}
               >
-                Figura
+                Figure
               </button>
               <button
-                onClick={() => setActiveTab('configuracion')}
+                onClick={() => setActiveTab('configuration')}
                 className={`py-2 px-4 ${
-                  activeTab === 'configuracion'
+                  activeTab === 'configuration'
                     ? 'border-b-2 border-blue-500 font-bold'
                     : ''
                 }`}
               >
-                Configuración
+                Configuration
               </button>
             </div>
-            {activeTab === 'figura' ? (
+            {activeTab === 'figure' ? (
               <div>
                 <h3 className="text-lg font-semibold mb-4">
-                  Editar Figura {tableToEdit.id}
+                  Edit Figure {tableToEdit.id}
                 </h3>
                 <div className="space-y-4">
                   <label className="block">
@@ -609,9 +498,14 @@ const FigureEditor: React.FC<TableEditorProps> = ({
             ) : (
               <div>
                 <h3 className="text-lg font-semibold mb-4">
-                  Configuración de Precios
+                  Price & Merge Configuration
                 </h3>
-                <Configuration onClose={handleModalCancel} />
+                <Configuration
+                  onClose={handleModalCancel}
+                  tables={tables.map(({ id, name }) => ({ id, name }))}
+                  mergeRules={mergeRules}
+                  setMergeRules={setMergeRules}
+                />
               </div>
             )}
           </div>
