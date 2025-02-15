@@ -242,6 +242,16 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
 
   const handleDeleteTable = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    const tableToDelete = tables[index];
+    const isMerged = mergeRules.some((rule) =>
+      rule.mergeFrom.includes(tableToDelete.id)
+    );
+    const confirmMsg = isMerged
+      ? 'This figure is merged in one or more merge rules. Do you really want to delete it?'
+      : 'Are you sure you want to delete this figure?';
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
     setTables((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -379,7 +389,7 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
               fill={
                 draftTable.color ? draftTable.color : 'rgba(0, 0, 255, 0.3)'
               }
-              stroke="blue"
+              stroke="black"
               strokeDasharray="4"
               strokeWidth="2"
             />
@@ -391,7 +401,7 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
               fill={
                 draftTable.color ? draftTable.color : 'rgba(0, 0, 255, 0.3)'
               }
-              stroke="blue"
+              stroke="black"
               strokeDasharray="4"
               strokeWidth="2"
             />
@@ -420,7 +430,7 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
                 onClick={() => setActiveTab('figure')}
                 className={`py-2 px-4 ${
                   activeTab === 'figure'
-                    ? 'border-b-2 border-blue-500 font-bold'
+                    ? 'border-b-2 border-black font-bold'
                     : ''
                 }`}
               >
@@ -430,7 +440,7 @@ const FigureEditor: React.FC<FigureEditorProps> = ({
                 onClick={() => setActiveTab('configuration')}
                 className={`py-2 px-4 ${
                   activeTab === 'configuration'
-                    ? 'border-b-2 border-blue-500 font-bold'
+                    ? 'border-b-2 border-black font-bold'
                     : ''
                 }`}
               >

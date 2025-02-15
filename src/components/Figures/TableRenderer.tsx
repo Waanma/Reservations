@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Table } from '@/types/types';
+import { LuTrash2 } from 'react-icons/lu';
 
 interface TableRendererProps {
   tables: Table[];
@@ -43,6 +44,12 @@ const TableRenderer: React.FC<TableRendererProps> = ({
     setMousePos({ x: e.clientX, y: e.clientY });
   };
 
+  useEffect(() => {
+    if (hoveredTable && !tables.some((t) => t.id === hoveredTable.id)) {
+      setHoveredTable(null);
+    }
+  }, [tables, hoveredTable]);
+
   return (
     <>
       {tables.map((table, idx) => {
@@ -67,7 +74,7 @@ const TableRenderer: React.FC<TableRendererProps> = ({
                 width={(table.width || 0) * scale}
                 height={(table.height || 0) * scale}
                 fill={fillColor}
-                stroke="blue"
+                stroke="black"
                 strokeWidth="2"
                 cursor={isEditing ? 'move' : 'default'}
                 onMouseDown={(e) => handleTableMouseDown(idx, e)}
@@ -78,7 +85,7 @@ const TableRenderer: React.FC<TableRendererProps> = ({
                 cy={table.y * scale}
                 r={(table.radius || 0) * scale}
                 fill={fillColor}
-                stroke="blue"
+                stroke="black"
                 strokeWidth="2"
                 cursor={isEditing ? 'move' : 'default'}
                 onMouseDown={(e) => handleTableMouseDown(idx, e)}
@@ -106,24 +113,41 @@ const TableRenderer: React.FC<TableRendererProps> = ({
             </text>
 
             {isEditing && (
-              <text
-                x={
-                  table.shape === 'rect'
-                    ? (table.x + (table.width || 0)) * scale - 10
-                    : table.x * scale + (table.radius || 0) * scale - 10
-                }
-                y={
-                  table.shape === 'rect'
-                    ? table.y * scale + 15
-                    : table.y * scale + (table.radius || 0) * scale + 5
-                }
-                fill="red"
-                fontSize={14}
-                className="cursor-pointer select-none"
+              <g
                 onClick={(e) => handleDeleteTable(idx, e)}
+                className="cursor-pointer"
               >
-                ✕
-              </text>
+                <foreignObject
+                  x={
+                    table.shape === 'rect'
+                      ? (table.x + (table.width || 0)) * scale - 10 // Centrado a la mitad del contenedor (20/2)
+                      : table.x * scale + (table.radius || 0) * scale - 10
+                  }
+                  y={
+                    table.shape === 'rect'
+                      ? table.y * scale - 10
+                      : table.y * scale - 10
+                  }
+                  width={20}
+                  height={20}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '100%',
+                      height: '100%',
+                      backgroundColor: 'rgba(255,255,255,0.8)',
+                      borderRadius: '50%',
+                      border: '1px solid red',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <LuTrash2 size={14} color="red" />
+                  </div>
+                </foreignObject>
+              </g>
             )}
           </g>
         );

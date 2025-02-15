@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MergeRule } from '@/types/types';
 
 interface ConfigurationProps {
@@ -9,6 +9,53 @@ interface ConfigurationProps {
   mergeRules: MergeRule[];
   setMergeRules: React.Dispatch<React.SetStateAction<MergeRule[]>>;
 }
+
+// Función para convertir una hora "HH:mm" a minutos
+const timeToMinutes = (time: string): number => {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+// Función para verificar si dos intervalos de tiempo se solapan
+const isTimeOverlap = (
+  start1: string,
+  end1: string,
+  start2: string,
+  end2: string
+): boolean => {
+  const s1 = timeToMinutes(start1);
+  const e1 = timeToMinutes(end1);
+  const s2 = timeToMinutes(start2);
+  const e2 = timeToMinutes(end2);
+  return s1 < e2 && s2 < e1;
+};
+
+// Función para comprobar si hay conflicto entre la regla nueva (o editada) y las existentes
+const hasConflict = (
+  newRule: MergeRule,
+  existingRules: MergeRule[]
+): boolean => {
+  for (const rule of existingRules) {
+    // Se revisa si comparten al menos una figure
+    const commonFigures = rule.mergeFrom.filter((figureId) =>
+      newRule.mergeFrom.includes(figureId)
+    );
+    if (commonFigures.length > 0) {
+      // Si comparten figures, se verifica el solapamiento de horarios
+      if (
+        isTimeOverlap(
+          rule.activeFrom,
+          rule.activeTo,
+          newRule.activeFrom,
+          newRule.activeTo
+        )
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
 
 const Configuration: React.FC<ConfigurationProps> = ({
   tables,
@@ -29,6 +76,20 @@ const Configuration: React.FC<ConfigurationProps> = ({
 
   // Estado para la regla en edición (cuando no es nula, se abre el modal)
   const [editingRule, setEditingRule] = useState<MergeRule | null>(null);
+
+  // Cada vez que cambien las figures (tables), actualizamos las reglas eliminando las que ya no existen
+  useEffect(() => {
+    const validIds = new Set(tables.map((table) => table.id));
+    setMergeRules((currentRules) =>
+      currentRules
+        .map((rule) => ({
+          ...rule,
+          mergeFrom: rule.mergeFrom.filter((id) => validIds.has(id)),
+        }))
+        // Opcional: si una regla queda con menos de dos figures, se elimina
+        .filter((rule) => rule.mergeFrom.length >= 2)
+    );
+  }, [tables, setMergeRules]);
 
   // Manejar cambios en checkbox para la nueva regla
   const handleCheckboxChange = (id: number) => {
@@ -55,9 +116,31 @@ const Configuration: React.FC<ConfigurationProps> = ({
     });
   };
 
+  // Validación de campos obligatorios
+  const validateRule = (rule: MergeRule): boolean => {
+    if (
+      rule.mergeFrom.length < 2 ||
+      !rule.newName.trim() ||
+      !rule.activeFrom ||
+      !rule.activeTo
+    ) {
+      return false;
+    }
+    return true;
+  };
+
   const handleAddRule = () => {
-    if (newRule.mergeFrom.length < 2) {
-      alert('Please select at least two figures to merge.');
+    if (!validateRule(newRule)) {
+      alert(
+        'Please fill in all required fields and select at least two figures to merge.'
+      );
+      return;
+    }
+    // Verificar conflictos con las reglas existentes
+    if (hasConflict(newRule, mergeRules)) {
+      alert(
+        "Conflict: The rule's time overlaps with another rule that uses some of the same figures."
+      );
       return;
     }
     const generatedId = Math.max(...tables.map((t) => t.id)) + 1;
@@ -74,7 +157,7 @@ const Configuration: React.FC<ConfigurationProps> = ({
   };
 
   const startEditing = (rule: MergeRule) => {
-    // Abrimos el modal con una copia de la regla
+    // Abrir el modal con una copia de la regla
     setEditingRule({ ...rule });
   };
 
@@ -84,8 +167,20 @@ const Configuration: React.FC<ConfigurationProps> = ({
 
   const saveEditing = () => {
     if (editingRule) {
-      if (editingRule.mergeFrom.length < 2) {
-        alert('Please select at least two figures to merge.');
+      if (!validateRule(editingRule)) {
+        alert(
+          'Please fill in all required fields and select at least two figures to merge.'
+        );
+        return;
+      }
+      // Excluir la regla en edición para evitar compararla consigo misma
+      const otherRules = mergeRules.filter(
+        (r) => r.newId !== editingRule.newId
+      );
+      if (hasConflict(editingRule, otherRules)) {
+        alert(
+          "Conflict: The rule's time overlaps with another rule that uses some of the same figures."
+        );
         return;
       }
       setMergeRules(
