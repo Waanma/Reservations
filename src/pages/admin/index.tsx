@@ -1,3 +1,5 @@
+'use client';
+
 import PerimeterEditor from '../../components/Perimeter/PerimeterEditor';
 
 const Admin = () => {

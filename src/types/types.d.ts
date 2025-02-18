@@ -1,6 +1,5 @@
-export type Table = {
+export type Figure = {
   id: number;
-
   mergeId?: number;
   name: string;
   shape: 'rect' | 'circle'; // Mesa rectangular o redonda
@@ -49,8 +48,8 @@ interface MergeRule {
 }
 
 export type FigureEditorProps = {
-  tables: Table[];
-  setTables: React.Dispatch<React.SetStateAction<Table[]>>;
+  figures: Figure[];
+  setFigures: React.Dispatch<React.SetStateAction<Figure[]>>;
   scale: number;
   zoom: number;
   svgSize: { width: number; height: number };
@@ -59,4 +58,6 @@ export type FigureEditorProps = {
   onSwitchToPerimeter: () => void;
   handlePanMouseDown: (e: React.MouseEvent<Element, MouseEvent>) => void;
   showGrid?: boolean;
+  onFigureSelect: (figure: Figure) => void;
+  hideEditingControls?: boolean;
 };

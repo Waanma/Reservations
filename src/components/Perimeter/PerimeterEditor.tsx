@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import FigureEditor from '@/components/Figures/FigureEditor';
 import mockData from '@/public/data/mockData.json';
-import { Table } from '@/types/types';
+import { Figure } from '@/types/types';
 import { useZoomContext } from '@/contexts/ZoomContext';
 import Header from './PerimeterHeader';
 import PolygonEditor from './PolygonEditor';
 import Grid from '../Grid';
+import { useStore } from '@/store/useStore';
 
 type Mode = 'Perimeter' | 'Figures';
 
@@ -14,22 +15,25 @@ const PerimeterEditor: React.FC = () => {
   const initialCoordinates: number[][] = mockData.salon.coordinates;
 
   // Inicializa las mesas usando los datos del mock.
-  const [tables, setTables] = useState<Table[]>(() => {
-    return mockData.tables.length > 0
-      ? mockData.tables.map((table, index) => ({
-          id: table.id ?? index + 1,
-          name: table.name ?? `Table ${index + 1}`,
-          shape: table.shape === 'circle' ? 'circle' : 'rect',
-          x: table.x ?? 0,
-          y: table.y ?? 0,
-          width: table.shape === 'rect' ? table.width ?? 2 : undefined,
-          height: table.shape === 'rect' ? table.height ?? 1 : undefined,
-          radius: table.shape === 'circle' ? table.radius ?? 1 : undefined,
+  const [figures, setFigures] = useState<Figure[]>(() => {
+    return mockData.figures.length > 0
+      ? mockData.figures.map((figure, index) => ({
+          id: figure.id ?? index + 1,
+          name: figure.name ?? `Figure ${index + 1}`,
+          shape: figure.shape === 'circle' ? 'circle' : 'rect',
+          x: figure.x ?? 0,
+          y: figure.y ?? 0,
+          width: figure.shape === 'rect' ? figure.width ?? 2 : undefined,
+          height: figure.shape === 'rect' ? figure.height ?? 1 : undefined,
+          radius: figure.shape === 'circle' ? figure.radius ?? 1 : undefined,
         }))
       : [];
   });
 
-  // Estado para la figura del salón
+  // Extraemos del store el perímetro y sus setters
+  const { perimeter, setPerimeter } = useStore();
+
+  // Estado para la figura del salón (inicializado con el perímetro del JSON)
   const [salonCoordinates, setSalonCoordinates] =
     useState<number[][]>(initialCoordinates);
   const [distances, setDistances] = useState<{ [key: string]: number }>({});
@@ -43,9 +47,6 @@ const PerimeterEditor: React.FC = () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const cloned = coords.map((point) => [...point]);
   };
-
-  // Estado para guardar la figura final del salón
-  const [savedSalon, setSavedSalon] = useState<number[][] | null>(null);
 
   // Tamaño responsivo del SVG (en píxeles)
   const [svgSize, setSvgSize] = useState({
@@ -68,6 +69,8 @@ const PerimeterEditor: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const [editMode, setEditMode] = useState<Mode>('Perimeter');
+
   const handleSwitchMode = () => {
     setEditMode(editMode === 'Perimeter' ? 'Figures' : 'Perimeter');
   };
@@ -85,9 +88,6 @@ const PerimeterEditor: React.FC = () => {
     }
     setDistances(newDistances);
   }, [salonCoordinates]);
-
-  // Modo de edición: 'salon' para editar el salón, 'mesas' para editar mesas
-  const [editMode, setEditMode] = useState<Mode>('Perimeter');
 
   // ---------- Funciones para el modo SALÓN ----------
   const handleVertexMouseDown = (
@@ -143,7 +143,7 @@ const PerimeterEditor: React.FC = () => {
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  // Agrega un vértice al hacer doble clic (proyecta sobre el segmento más cercano).
+  // Agrega un vértice al hacer doble clic (proyecta sobre el segmento más cercano)
   const handleAddVertex = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
     if (editMode !== 'Perimeter') return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -178,7 +178,10 @@ const PerimeterEditor: React.FC = () => {
     setSalonCoordinates(updatedCoordinates);
   };
 
-  const findNearestVertices = (_x: number, _y: number) => {
+  const findNearestVertices = (
+    _x: number,
+    _y: number
+  ): [number, number] | null => {
     let nearestStartIndex = -1;
     let nearestEndIndex = -1;
     let minDistance = Infinity;
@@ -279,24 +282,28 @@ const PerimeterEditor: React.FC = () => {
     }
   };
 
+  // Al guardar el salón, actualizamos el store y cambiamos a modo Figures.
   const handleSaveSalon = () => {
-    setSavedSalon(salonCoordinates);
+    setPerimeter({ ...perimeter, coordinates: salonCoordinates });
     setEditMode('Figures');
   };
 
+  // Modo Figures: se muestra el FigureEditor, usando las figuras y el perímetro guardado en el store.
   if (editMode === 'Figures') {
     return (
       <FigureEditor
-        tables={tables}
-        setTables={setTables}
+        figures={figures}
+        setFigures={setFigures}
         scale={scaleRef.current}
         zoom={zoom}
-        position={position}
         svgSize={svgSize}
-        salonPolygon={savedSalon}
+        position={position}
+        salonPolygon={perimeter.coordinates}
         onSwitchToPerimeter={handleSwitchMode}
         handlePanMouseDown={handlePanMouseDown}
         showGrid={false}
+        onFigureSelect={() => {}}
+        editable={true}
       />
     );
   }
@@ -367,10 +374,6 @@ const PerimeterEditor: React.FC = () => {
             onWheel={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log(
-                'Wheel event fired (onWheel prop), deltaY:',
-                e.deltaY
-              );
               const zoomFactor = 0.1;
               setZoom((prevZoom) =>
                 Math.max(
@@ -395,6 +398,8 @@ const PerimeterEditor: React.FC = () => {
                 salonXs={salonXs}
                 salonYs={salonYs}
               />
+              {gridVerticalLines}
+              {gridHorizontalLines}
               <PolygonEditor
                 salonCoordinates={salonCoordinates}
                 scale={scaleRef.current}

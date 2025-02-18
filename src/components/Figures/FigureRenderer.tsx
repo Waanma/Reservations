@@ -2,42 +2,48 @@
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { Table } from '@/types/types';
+import { Figure } from '@/types/types';
 import { LuTrash2 } from 'react-icons/lu';
 
-interface TableRendererProps {
-  tables: Table[];
+interface FigureRendererProps {
+  figures: Figure[];
   scale: number;
+  zoom: number;
   isEditing: boolean;
-  handleTableMouseDown: (
+  handleFigureMouseDown: (
     index: number,
     e: React.MouseEvent<SVGElement, MouseEvent>
   ) => void;
-  handleDeleteTable: (index: number, e: React.MouseEvent) => void;
-  handleEditTable: (
+  handleDeleteFigure: (index: number, e: React.MouseEvent) => void;
+  handleEditFigure: (
     index: number,
     e: React.MouseEvent<SVGTextElement, MouseEvent>
   ) => void;
+  onFigureSelect?: (figure: Figure) => void;
 }
 
-const TableRenderer: React.FC<TableRendererProps> = ({
-  tables,
+const FigureRenderer: React.FC<FigureRendererProps> = ({
+  figures,
   scale,
   isEditing,
-  handleTableMouseDown,
-  handleDeleteTable,
-  handleEditTable,
+  handleFigureMouseDown,
+  handleDeleteFigure,
+  handleEditFigure,
+  onFigureSelect,
 }) => {
-  const [hoveredTable, setHoveredTable] = useState<Table | null>(null);
+  const [hoveredFigure, setHoveredFigure] = useState<Figure | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-  const handleMouseEnter = (table: Table, e: React.MouseEvent<SVGElement>) => {
-    setHoveredTable(table);
+  const handleMouseEnter = (
+    figure: Figure,
+    e: React.MouseEvent<SVGElement>
+  ) => {
+    setHoveredFigure(figure);
     setMousePos({ x: e.clientX, y: e.clientY });
   };
 
   const handleMouseLeave = () => {
-    setHoveredTable(null);
+    setHoveredFigure(null);
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGElement>) => {
@@ -45,88 +51,93 @@ const TableRenderer: React.FC<TableRendererProps> = ({
   };
 
   useEffect(() => {
-    if (hoveredTable && !tables.some((t) => t.id === hoveredTable.id)) {
-      setHoveredTable(null);
+    if (hoveredFigure && !figures.some((t) => t.id === hoveredFigure.id)) {
+      setHoveredFigure(null);
     }
-  }, [tables, hoveredTable]);
+  }, [figures, hoveredFigure]);
 
   return (
     <>
-      {tables.map((table, idx) => {
-        const key = table.id + '-' + idx;
-        const fillColor = table.mergedColor
-          ? table.mergedColor
+      {figures.map((figure, idx) => {
+        const key = figure.id + '-' + idx;
+        const fillColor = figure.mergedColor
+          ? figure.mergedColor
           : 'rgba(0, 0, 255, 0.3)';
-
-        const displayId = table.mergeId ?? table.id;
+        const displayId = figure.mergeId ?? figure.id;
 
         return (
           <g
             key={key}
-            onMouseEnter={(e) => handleMouseEnter(table, e)}
+            onMouseEnter={(e) => handleMouseEnter(figure, e)}
             onMouseLeave={handleMouseLeave}
             onMouseMove={handleMouseMove}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onFigureSelect) {
+                onFigureSelect(figure);
+              }
+            }}
           >
-            {table.shape === 'rect' ? (
+            {figure.shape === 'rect' ? (
               <rect
-                x={table.x * scale}
-                y={table.y * scale}
-                width={(table.width || 0) * scale}
-                height={(table.height || 0) * scale}
+                x={figure.x * scale}
+                y={figure.y * scale}
+                width={(figure.width || 0) * scale}
+                height={(figure.height || 0) * scale}
                 fill={fillColor}
                 stroke="black"
                 strokeWidth="2"
                 cursor={isEditing ? 'move' : 'default'}
-                onMouseDown={(e) => handleTableMouseDown(idx, e)}
+                onMouseDown={(e) => handleFigureMouseDown(idx, e)}
               />
             ) : (
               <circle
-                cx={table.x * scale}
-                cy={table.y * scale}
-                r={(table.radius || 0) * scale}
+                cx={figure.x * scale}
+                cy={figure.y * scale}
+                r={(figure.radius || 0) * scale}
                 fill={fillColor}
                 stroke="black"
                 strokeWidth="2"
                 cursor={isEditing ? 'move' : 'default'}
-                onMouseDown={(e) => handleTableMouseDown(idx, e)}
+                onMouseDown={(e) => handleFigureMouseDown(idx, e)}
               />
             )}
 
             <text
               x={
-                table.shape === 'rect'
-                  ? (table.x + (table.width || 0) / 2) * scale
-                  : table.x * scale
+                figure.shape === 'rect'
+                  ? (figure.x + (figure.width || 0) / 2) * scale
+                  : figure.x * scale
               }
               y={
-                table.shape === 'rect'
-                  ? (table.y + (table.height || 0) / 2) * scale
-                  : table.y * scale
+                figure.shape === 'rect'
+                  ? (figure.y + (figure.height || 0) / 2) * scale
+                  : figure.y * scale
               }
               fill="black"
               fontSize={12}
               textAnchor="middle"
-              onDoubleClick={(e) => handleEditTable(idx, e)}
+              onDoubleClick={(e) => handleEditFigure(idx, e)}
               className="select-none"
             >
-              {displayId} - {table.name}
+              {displayId} - {figure.name}
             </text>
 
             {isEditing && (
               <g
-                onClick={(e) => handleDeleteTable(idx, e)}
+                onClick={(e) => handleDeleteFigure(idx, e)}
                 className="cursor-pointer"
               >
                 <foreignObject
                   x={
-                    table.shape === 'rect'
-                      ? (table.x + (table.width || 0)) * scale - 10 // Centrado a la mitad del contenedor (20/2)
-                      : table.x * scale + (table.radius || 0) * scale - 10
+                    figure.shape === 'rect'
+                      ? (figure.x + (figure.width || 0)) * scale - 10
+                      : figure.x * scale + (figure.radius || 0) * scale - 10
                   }
                   y={
-                    table.shape === 'rect'
-                      ? table.y * scale - 10
-                      : table.y * scale - 10
+                    figure.shape === 'rect'
+                      ? figure.y * scale - 10
+                      : figure.y * scale - 10
                   }
                   width={20}
                   height={20}
@@ -153,8 +164,7 @@ const TableRenderer: React.FC<TableRendererProps> = ({
         );
       })}
 
-      {/* Render del tooltip flotante usando un portal */}
-      {hoveredTable &&
+      {hoveredFigure &&
         ReactDOM.createPortal(
           <div
             style={{
@@ -170,10 +180,10 @@ const TableRenderer: React.FC<TableRendererProps> = ({
               pointerEvents: 'none',
             }}
           >
-            <div>ID: {hoveredTable.id}</div>
-            <div>Name: {hoveredTable.name}</div>
-            {hoveredTable.mergeId && (
-              <div>Merge id: {hoveredTable.mergeId}</div>
+            <div>ID: {hoveredFigure.id}</div>
+            <div>Name: {hoveredFigure.name}</div>
+            {hoveredFigure.mergeId && (
+              <div>Merge id: {hoveredFigure.mergeId}</div>
             )}
           </div>,
           document.body
@@ -182,4 +192,4 @@ const TableRenderer: React.FC<TableRendererProps> = ({
   );
 };
 
-export default TableRenderer;
+export default FigureRenderer;

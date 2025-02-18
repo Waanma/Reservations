@@ -5,7 +5,7 @@ import { MergeRule } from '@/types/types';
 
 interface ConfigurationProps {
   onClose: () => void;
-  tables: { id: number; name: string }[];
+  figures: { id: number; name: string }[];
   mergeRules: MergeRule[];
   setMergeRules: React.Dispatch<React.SetStateAction<MergeRule[]>>;
 }
@@ -58,7 +58,7 @@ const hasConflict = (
 };
 
 const Configuration: React.FC<ConfigurationProps> = ({
-  tables,
+  figures,
   mergeRules,
   setMergeRules,
 }) => {
@@ -79,7 +79,7 @@ const Configuration: React.FC<ConfigurationProps> = ({
 
   // Cada vez que cambien las figures (tables), actualizamos las reglas eliminando las que ya no existen
   useEffect(() => {
-    const validIds = new Set(tables.map((table) => table.id));
+    const validIds = new Set(figures.map((figure) => figure.id));
     setMergeRules((currentRules) =>
       currentRules
         .map((rule) => ({
@@ -89,7 +89,7 @@ const Configuration: React.FC<ConfigurationProps> = ({
         // Opcional: si una regla queda con menos de dos figures, se elimina
         .filter((rule) => rule.mergeFrom.length >= 2)
     );
-  }, [tables, setMergeRules]);
+  }, [figures, setMergeRules]);
 
   // Manejar cambios en checkbox para la nueva regla
   const handleCheckboxChange = (id: number) => {
@@ -143,7 +143,7 @@ const Configuration: React.FC<ConfigurationProps> = ({
       );
       return;
     }
-    const generatedId = Math.max(...tables.map((t) => t.id)) + 1;
+    const generatedId = Math.max(...figures.map((t) => t.id)) + 1;
     const ruleToAdd: MergeRule = { ...newRule, newId: generatedId };
     setMergeRules([...mergeRules, ruleToAdd]);
     setNewRule({
@@ -254,15 +254,15 @@ const Configuration: React.FC<ConfigurationProps> = ({
                 Select Figures to Merge:
               </label>
               <div className="grid grid-cols-2 gap-2">
-                {tables.map((table) => (
-                  <label key={table.id} className="flex items-center gap-2">
+                {figures.map((figure) => (
+                  <label key={figure.id} className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={newRule.mergeFrom.includes(table.id)}
-                      onChange={() => handleCheckboxChange(table.id)}
+                      checked={newRule.mergeFrom.includes(figure.id)}
+                      onChange={() => handleCheckboxChange(figure.id)}
                       className="cursor-pointer"
                     />
-                    {table.id} - {table.name}
+                    {figure.id} - {figure.name}
                   </label>
                 ))}
               </div>
@@ -344,15 +344,15 @@ const Configuration: React.FC<ConfigurationProps> = ({
             <div className="mb-4">
               <span className="font-medium">Merge from:</span>
               <div className="grid grid-cols-2 gap-2 mt-2">
-                {tables.map((table) => (
-                  <label key={table.id} className="flex items-center gap-2">
+                {figures.map((figure) => (
+                  <label key={figure.id} className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={editingRule.mergeFrom.includes(table.id)}
-                      onChange={() => handleEditCheckboxChange(table.id)}
+                      checked={editingRule.mergeFrom.includes(figure.id)}
+                      onChange={() => handleEditCheckboxChange(figure.id)}
                       className="cursor-pointer"
                     />
-                    {table.id} - {table.name}
+                    {figure.id} - {figure.name}
                   </label>
                 ))}
               </div>
